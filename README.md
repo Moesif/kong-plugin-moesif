@@ -8,7 +8,7 @@ It automatically captures _incoming_ API requests/responses and sends to Moesif 
 
 [Source Code on GitHub](https://github.com/Moesif/kong-plugin-moesif)
 
-[Package on Luarocks](http://luarocks.org/modules/abhijeetdhumal/kong-plugin-moesif)
+[Package on Luarocks](http://luarocks.org/modules/moesif/kong-plugin-moesif)
 
 ## How to install
 
