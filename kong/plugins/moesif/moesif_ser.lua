@@ -18,18 +18,18 @@ function _M.serialize(ngx)
   end
    return {
     request = {
-      uri =  ngx.var.request_uri,
+      uri =  ngx.var.scheme .. "://" .. ngx.var.host .. ":" .. ngx.var.server_port .. ngx.var.request_uri,
       headers = req_get_headers(),
       body = moesif_ctx.req_body,
       verb = req_get_method(),
-      ipAddress = ngx.var.remote_addr,	 
-      apiVersion = ngx.ctx.api_version,
-      time = os.date("%Y-%m-%dT%H:%M:%S.", req_start_time()) .. string.format("%d",(req_start_time()- string.format("%d", req_start_time()))*1000)
+      ip_address = ngx.var.remote_addr,	 
+      api_version = ngx.ctx.api_version,
+      time = os.date("!%Y-%m-%dT%H:%M:%S.", req_start_time()) .. string.format("%d",(req_start_time()- string.format("%d", req_start_time()))*1000)
     },
     response = {
-      time = os.date("%Y-%m-%dT%H:%M:%S.", ngx_now()) .. string.format("%d",(ngx_now()- string.format("%d",ngx_now()))*1000),
+      time = os.date("!%Y-%m-%dT%H:%M:%S.", ngx_now()) .. string.format("%d",(ngx_now()- string.format("%d",ngx_now()))*1000),
       status = ngx.status,
-      ipAddress = Nil,
+      ip_address = Nil,
       headers = res_get_headers(),
       body = moesif_ctx.res_body,
     },
