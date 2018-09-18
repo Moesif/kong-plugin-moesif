@@ -1,7 +1,8 @@
 # Moesif kong plugin
 
-Moesif Kong plugin to integrate [Kong](https://getkong.org) with [Moesif](https://www.moesif.com).
-It automatically captures _incoming_ API requests/responses and sends to Moesif for error analysis.
+The [Moesif Kong plugin](https://docs.konghq.com/hub/moesif/kong-plugin-moesif/) integrates [Kong API Gateway](https://getkong.org)
+with [Moesif API Analytics](https://www.moesif.com).
+The integration automatically captures API request/response data flowing through Kong and sends to Moesif.
 
 - Kong is an open source API gateway and management layer.
 - Moesif is an API analytics and monitoring service.
@@ -24,7 +25,7 @@ luarocks install kong-plugin-moesif
 
 ## How to use
 
-How to configure kong moesif plugin:
+How to configure Kong Moesif plugin:
 
 ### Enabling the plugin for a Service:
 
