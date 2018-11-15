@@ -20,7 +20,7 @@ If the luarocks utility is installed in your system (this is likely the case if 
 It can be installed from luarocks repository by doing:
 
 ```shell
-luarocks install kong-plugin-moesif
+luarocks install --server=http://luarocks.org/manifests/moesif kong-plugin-moesif
 ```
 
 ## How to use
