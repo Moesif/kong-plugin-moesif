@@ -76,7 +76,6 @@ local function log(premature, conf, message)
   end
 
   -- Sampling Events
-  math.randomseed(os.time())
   local random_percentage = math.random() * 100
 
   if conf.sampling_percentage >= random_percentage then
