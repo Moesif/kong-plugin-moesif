@@ -52,6 +52,6 @@ function MoesifLogHandler:log(conf)
 end
 
 MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "0.1.0"
+MoesifLogHandler.VERSION = "0.1.1"
 
 return MoesifLogHandler
