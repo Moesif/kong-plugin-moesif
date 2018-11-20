@@ -75,12 +75,19 @@ local function log(premature, conf, message)
     end
   end
 
-  ok, err = sock:send(generate_post_payload(parsed_url, access_token, message, application_id) .. "\r\n")
+  -- Sampling Events
+  math.randomseed(os.time())
+  local random_percentage = math.random() * 100
 
-  if not ok then
-    ngx_log(ngx_log_ERR, "[moesif] failed to send data to " .. host .. ":" .. tostring(port) .. ": ", err)
-  else 
-    ngx_log(ngx.DEBUG, "Logging " , ok)  
+  if conf.sampling_percentage >= random_percentage then
+    ok, err = sock:send(generate_post_payload(parsed_url, access_token, message, application_id) .. "\r\n")
+    if not ok then
+      ngx_log(ngx_log_ERR, "[moesif] failed to send data to " .. host .. ":" .. tostring(port) .. ": ", err)
+    else
+      ngx_log(ngx.DEBUG, "Logging " , ok)
+    end
+  else
+    ngx_log(ngx.DEBUG, "Skipped Event", " due to sampling percentage: " .. tostring(conf.sampling_percentage) .. " and random number: " .. tostring(random_percentage))
   end
 
   ok, err = sock:setkeepalive(conf.keepalive)
