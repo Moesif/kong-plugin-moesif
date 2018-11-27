@@ -83,7 +83,7 @@ local function log(premature, conf, message)
     if not ok then
       ngx_log(ngx_log_ERR, "[moesif] failed to send data to " .. host .. ":" .. tostring(port) .. ": ", err)
     else
-      ngx_log(ngx.DEBUG, "Logging " , ok)
+      ngx_log(ngx.DEBUG, "Logging Event " , ok)
     end
   else
     ngx_log(ngx.DEBUG, "Skipped Event", " due to sampling percentage: " .. tostring(conf.sampling_percentage) .. " and random number: " .. tostring(random_percentage))
