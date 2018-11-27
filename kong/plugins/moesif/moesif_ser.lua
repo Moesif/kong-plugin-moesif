@@ -8,13 +8,21 @@ local _M = {}
 
 function _M.serialize(ngx)
   local moesif_ctx = ngx.ctx.moesif or {}
-   local authenticated_entity
-  
-  if ngx.ctx.authenticated_credential ~= nil then
-    authenticated_entity = {
-      id = ngx.ctx.authenticated_credential.id,
-      consumer_id = ngx.ctx.authenticated_credential.consumer_id
-    }
+  local session_token_entity
+  local user_id_entity
+
+  if ngx.ctx.authenticated_credential.key ~= nil then
+    session_token_entity = tostring(ngx.ctx.authenticated_credential.key)
+  elseif ngx.ctx.authenticated_credential.id ~= nil then
+    session_token_entity = tostring(ngx.ctx.authenticated_credential.id)
+  else
+    session_token_entity = nil
+  end
+
+  if req_get_headers()["x-consumer-custom-id"] ~= nil then
+    user_id_entity = tostring(req_get_headers()["x-consumer-custom-id"])
+  else
+    user_id_entity = nil
   end
    return {
     request = {
@@ -33,8 +41,8 @@ function _M.serialize(ngx)
       headers = res_get_headers(),
       body = moesif_ctx.res_body,
     },
-    session_token = ngx.ctx.authenticated_credential,
-    user_id = nil  
+    session_token = session_token_entity,
+    user_id = user_id_entity
 }
 end
 
