@@ -47,11 +47,11 @@ end
 
 function MoesifLogHandler:log(conf)
   MoesifLogHandler.super.log(self)
-  local message = serializer.serialize(ngx)
+  local message = serializer.serialize(ngx, conf)
   log.execute(conf, message)
 end
 
 MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "0.1.1"
+MoesifLogHandler.VERSION = "0.1.3"
 
 return MoesifLogHandler
