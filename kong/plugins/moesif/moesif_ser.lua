@@ -31,7 +31,12 @@ function _M.serialize(ngx, conf)
     if next(conf.request_masks) == nil then
       request_body_entity = moesif_ctx.req_body
     else
-      request_body_entity = cjson.encode(mask_body(cjson.decode(moesif_ctx.req_body), conf.request_masks))
+      ok, mask_result = pcall(mask_body, cjson.decode(moesif_ctx.req_body), conf.request_masks)
+      if not ok then
+        request_body_entity = moesif_ctx.req_body
+      else
+        request_body_entity = cjson.encode(mask_result)
+      end
     end
   end
 
@@ -41,7 +46,12 @@ function _M.serialize(ngx, conf)
     if next(conf.response_masks) == nil then
       response_body_entity = moesif_ctx.res_body
     else
-      response_body_entity = cjson.encode(mask_body(cjson.decode(moesif_ctx.res_body), conf.response_masks))
+      ok, mask_result = pcall(mask_body, cjson.decode(moesif_ctx.res_body), conf.response_masks)
+      if not ok then
+        response_body_entity = moesif_ctx.res_body
+      else
+        response_body_entity = cjson.encode(mask_result)
+      end
     end
   end
 
