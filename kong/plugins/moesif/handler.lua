@@ -51,7 +51,12 @@ function MoesifLogHandler:log(conf)
   log.execute(conf, message)
 end
 
+function MoesifLogHandler:init_worker()
+  MoesifLogHandler.super.init_worker(self)
+  log.start_background_thread()
+end
+
 MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "0.1.3"
+MoesifLogHandler.VERSION = "0.1.4"
 
 return MoesifLogHandler
