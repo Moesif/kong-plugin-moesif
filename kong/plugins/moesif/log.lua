@@ -25,8 +25,8 @@ local function generate_post_payload(parsed_url, access_token, message,applicati
   local body = cjson.encode(message) 
   ngx_log(ngx.DEBUG, " application_id: ", application_id)
   local payload = string_format(
-    "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
-    "POST", parsed_url.path, parsed_url.host, application_id, #body, body)
+    "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
+    "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, #body, body)
   return payload
 end
 

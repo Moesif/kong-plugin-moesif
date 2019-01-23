@@ -1,7 +1,6 @@
 local serializer = require "kong.plugins.moesif.moesif_ser"
 local BasePlugin = require "kong.plugins.base_plugin"
 local log = require "kong.plugins.moesif.log"
-local public_utils = require "kong.tools.public"
 
 local string_find = string.find
 local req_read_body = ngx.req.read_body
@@ -25,9 +24,9 @@ function MoesifLogHandler:access(conf)
     local headers = req_get_headers()
     local content_type = headers["content-type"]
     if content_type and string_find(content_type:lower(), "application/x-www-form-urlencoded", nil, true) then
-      req_post_args = public_utils.get_body_args()
+      req_post_args, err, mimetype = kong.request.get_body()
     end
-    ngx.ctx.api_version = conf.api_version   
+    ngx.ctx.api_version = conf.api_version	  
 -- keep in memory the bodies for this request
   ngx.ctx.moesif = {
     req_body = req_body,
@@ -57,6 +56,9 @@ function MoesifLogHandler:init_worker()
 end
 
 MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "0.1.4"
+MoesifLogHandler.VERSION = "0.1.5"
+
+-- Plugin version
+plugin_version = MoesifLogHandler.VERSION
 
 return MoesifLogHandler
