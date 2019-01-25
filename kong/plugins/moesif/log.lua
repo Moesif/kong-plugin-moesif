@@ -15,6 +15,7 @@ local queue_hashes = {}
 local moesif_events = "moesif_events_"
 local has_events = false
 local ngx_md5 = ngx.md5
+local lib_deflate = require "kong.plugins.moesif.LibDeflate"
 
 -- Generates http payload .
 -- @param `method` http method to be used to send data
@@ -24,9 +25,17 @@ local ngx_md5 = ngx.md5
 local function generate_post_payload(parsed_url, access_token, message,application_id)
   local body = cjson.encode(message) 
   ngx_log(ngx.DEBUG, " application_id: ", application_id)
+  local ok, compressed_body = pcall(lib_deflate["CompressDeflate"], lib_deflate, body)
+  if not ok then
+    ngx_log(ngx_log_ERR, "[moesif] failed to compress body: ", compressed_body)
+  else
+    ngx_log(ngx.DEBUG, " [moesif]  ", "successfully compressed body")
+    body = compressed_body
+  end
+
   local payload = string_format(
-    "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
-    "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, #body, body)
+    "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Encoding: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
+    "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, "deflate", #body, body)
   return payload
 end
 

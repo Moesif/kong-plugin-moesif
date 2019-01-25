@@ -56,7 +56,12 @@ function getClientIpFromXForwardedFor(value)
 
   for word in string.gmatch(value, '([^,]+)') do
     ip = string.gsub(word, "%s+", "")
-    table.insert(forwardedIps, ip)
+    if string.match(value, ":") then
+        splitted = string.match(value, "(.*)%:")
+        table.insert(forwardedIps, splitted)
+      else
+        table.insert(forwardedIps, ip)
+    end
   end
 
   for index, value in ipairs(forwardedIps) do
