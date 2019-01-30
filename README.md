@@ -107,23 +107,6 @@ curl -X POST http://kong:8001/apis/{api}/plugins \
     --data "config.application_id=MY_MOESIF_APPLICATION_ID"
 ```
 
-| Parameter | Default | Description |
-| --- | --- | --- |
-| name |  | The name of the plugin to use, in this case moesif |
-| api_id |   | The id of the API which this plugin will target. |
-| service_id | |The id of the Service which this plugin will target. |
-| route_id	 | |The id of the Route which this plugin will target. |
-| consumer_id |  | The id of the Consumer which this plugin will target. |
-| config.application_id	 |  | Moesif application id  |
-| config.api_endpoint | https://api.moesif.net | URL for the Moesif API.|
-| config.timeout  | 10000  | An optional timeout in milliseconds when sending data to Moesif. |
-| config.keepalive  | 30 |  An optional value in milliseconds that defines for how long an idle connection will live before being closed. |
-| config.api_version| 1.0 | An optional API Version you want to tag this request with  |
-| config.disable_capture_request_body | false | An option to disable logging of request body |
-| config.disable_capture_response_body | false | An option to disable logging of response body |
-| config.request_masks | {} | An option to mask a specific request body field |
-| config.response_masks | {} | An option to mask a specific response body field |
-
 ## Parameters
 
 Here's a list of all the parameters which can be used in this plugin's configuration:
