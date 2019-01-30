@@ -2,10 +2,12 @@
 
 The [Moesif Kong plugin](https://docs.konghq.com/hub/moesif/kong-plugin-moesif/) integrates [Kong API Gateway](https://getkong.org)
 with [Moesif API Analytics](https://www.moesif.com).
-The integration automatically captures API request/response data flowing through Kong and sends to Moesif.
 
 - Kong is an open source API gateway and management layer.
-- Moesif is an API analytics and monitoring service.
+- Moesif is an API analytics and debugging service.
+
+When enabled, this plugin will capture API requests and responses and log to Moesif API Insights for easy inspecting and real-time debugging of your API traffic.
+Support for REST, GraphQL, Ethereum Web3, JSON-RPC, SOAP, & more
 
 [Source Code on GitHub](https://github.com/Moesif/kong-plugin-moesif)
 
@@ -27,85 +29,108 @@ luarocks install --server=http://luarocks.org/manifests/moesif kong-plugin-moesi
 
 How to configure Kong Moesif plugin:
 
-### Enabling the plugin for a Service:
+### Terminology
+- `plugin`: a plugin executing actions inside Kong before or after a request has been proxied to the upstream API.
+- `Service`: the Kong entity representing an external upstream API or microservice.
+- `Route`: the Kong entity representing a way to map downstream requests to upstream services.
+- `Consumer`: the Kong entity representing a developer or machine using the API. When using Kong, a Consumer only communicates with Kong which proxies every call to the said upstream API.
+- `Credential`: a unique string associated with a Consumer, also referred to as an API key.
+upstream service: this refers to your own API/service sitting behind Kong, to which client requests are forwarded.
+- `API`: a legacy entity used to represent your upstream services. Deprecated in favor of Services since CE 0.13.0 and EE 0.32.
 
-Configure on top of a Service by executing the following request on your Kong server:
+### Enabling the plugin Globally
 
-```
-curl -i -X POST --url http://localhost:8001/services/{service}/plugins/ \
-     --data "name=moesif"   \
-     --data "config.application_id=X-MOESIF-APPLICATION-ID";
-```
-service: the id or name of the Service that this plugin configuration will target.
-X-MOESIF-APPLICATION-ID: You can find your Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _App Setup_
-
-### Enabling the plugin for a Route:
-
-Configure on top of a Route with:
-
+A plugin which is not associated to any Service, Route or Consumer (or API, if you are using an older version of Kong) is considered "global",
+and will be run on every request. Read the [Plugin Reference](https://docs.konghq.com/1.0.x/admin-api/#add-plugin) and the
+[Plugin Precedence](https://docs.konghq.com/1.0.x/admin-api/#precedence) sections for more information.
 
 ```
-curl -X POST http://localhost:8001/routes/{route_id}/plugins \
-    --data "name=moesif" \
-    --data "config.application_id=X-MOESIF-APPLICATION-ID"
-```
-route_id: the id of the Route that this plugin configuration will target.
-X-MOESIF-APPLICATION-ID: You can find your Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _App Setup_
-
-
-### Enabling the plugin for an API
-
-If you are using the deprecated API entity, you can configure on top of an API by executing the following request on your Kong server:
-
-
-```
-$ curl -X POST http://kong:8001/apis/{api}/plugins \
-    --data "name=moesif"  \
-    --data "config.application_id=X-MOESIF-APPLICATION-ID"
-
+curl -X POST http://localhost:8001/plugins \
+    --data "name=kong-plugin-moesif"  \
+    --data "config.application_id=MY_MOESIF_APPLICATION_ID"
 ```
 
-api: either id or name of the API that this plugin configuration will target.
-X-MOESIF-APPLICATION-ID: You can find your Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _App Setup_
+- `config.application_id`: You can find your Moesif Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _App Setup_
 
+### Enabling the plugin on a Service
 
-### Enabling the plugin for a Consumer
-
-You can use the http://localhost:8001/plugins endpoint to target Consumers:
+Configure this plugin on a [Service](https://docs.konghq.com/1.0.x/admin-api/#service-object) by making the following request on your Kong server:
 
 ```
-$ curl -X POST http://kong:8001/plugins \
-    --data "name=moesif" \
+curl -X POST http://kong:8001/services/{service}/plugins \
+    --data "name=kong-plugin-moesif"  \
+    --data "config.application_id=MY_MOESIF_APPLICATION_ID"
+```
+
+- `config.application_id`: You can find your Moesif Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _App Setup_
+- `service`: the id or name of the Service that this plugin configuration will target.
+
+
+### Enabling the plugin on a Route
+
+Configure this plugin on a [Route](https://docs.konghq.com/1.0.x/admin-api/#Route-object) with:
+
+
+```
+curl -X POST http://kong:8001/routes/{route_id}/plugins \
+    --data "name=kong-plugin-moesif"  \
+    --data "config.application_id=MY_MOESIF_APPLICATION_ID"
+```
+- `config.application_id`: You can find your Moesif Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _App Setup_
+- `route_id`: the id of the Route that this plugin configuration will target.
+
+### Enabling the plugin on a Consumer
+
+You can use the `http://localhost:8001/plugins` endpoint to enable this plugin on specific [Consumers](https://docs.konghq.com/1.0.x/admin-api/#Consumer-object):
+
+```
+curl -X POST http://kong:8001/plugins \
+    --data "name=kong-plugin-moesif" \
     --data "consumer_id={consumer_id}"  \
-    --data "config.application_id=X-MOESIF-APPLICATION-ID"
+    --data "config.application_id=MY_MOESIF_APPLICATION_ID"
 ```
-Where consumer_id is the id of the Consumer we want to associate with this plugin.
 
-You can combine adding consumer_id and service_id in the same request.
+- `config.application_id`: You can find your Moesif Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _App Setup_
+- `consumer_id`: the id of the Consumer we want to associate with this plugin.
 
-### Global plugins
+You can combine `consumer_id` and `service_id` in the same request, to furthermore narrow the scope of the plugin.
 
-All plugins can be configured using the http:/kong:8001/plugins/ endpoint.
-A plugin which is not associated to any API, Service, Route or Consumer is considered "global", and will be run on every request. Read the Plugin Reference and the Plugin Precedence sections for more information.
+### Enabling the plugin on an API
+
+If you are using an older version of Kong with the legacy [API entity](https://docs.konghq.com/0.13.x/admin-api/#api-object)
+(deprecated in favor of Services since CE 0.13.0 and EE 0.32.),
+you can configure this plugin on top of such an API by making the following request:
+
+```
+curl -X POST http://kong:8001/apis/{api}/plugins \
+    --data "name=kong-plugin-moesif"  \
+    --data "config.application_id=MY_MOESIF_APPLICATION_ID"
+```
+
+- `config.application_id`: You can find your Moesif Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _App Setup_
+- `api`: either id or name of the API that this plugin configuration will target.
 
 ## Parameters
 
 Here's a list of all the parameters which can be used in this plugin's configuration:
 
-| Parameter | Default | Description |
-| --- | --- | --- |
-| name |  | The name of the plugin to use, in this case moesif |
-| api_id |   | The id of the API which this plugin will target. |
-| service_id | |The id of the Service which this plugin will target. |
-| route_id	 | |The id of the Route which this plugin will target. |
-| consumer_id |  | The id of the Consumer which this plugin will target. |
-| config.application_id	 |  | Moesif application id  |
-| config.api_endpoint | https://api.moesif.net | URL for the Moesif API.|
-| config.timeout  | 10000  | An optional timeout in milliseconds when sending data to Moesif. |
-| config.keepalive  | 30 |  An optional value in milliseconds that defines for how long an idle connection will live before being closed. |
-| config.api_version| 1.0 | An optional API Version you want to tag this request with  |
-
-
+|Parameter|Default|Description|
+|---|---|---|
+|name||The name of the plugin to use, in this case kong-plugin-moesif|
+|service_id||The id of the Service which this plugin will target.|
+|route_id	||The id of the Route which this plugin will target.|
+|enabled|true|Whether this plugin will be applied.|
+|consumer_id||The id of the Consumer which this plugin will target.|
+|api_id||The id of the API which this plugin will target. Note: The API Entity is deprecated in favor of Services since CE 0.13.0 and EE 0.32.|
+|config.application_id	||The Moesif application token provided to you by Moesif.|
+|config.api_endpoint|https://api.moesif.net|URL for the Moesif API.|
+|config.timeout|10000|An optional timeout in milliseconds when sending data to Moesif.|
+|config.keepalive|10000|An optional value in milliseconds that defines for how long an idle connection will live before being closed.|
+|config.api_version|1.0|An optional API Version you want to tag this request with in Moesif.|
+|config.disable_capture_request_body|false|An option to disable logging of request body.|
+|config.disable_capture_response_body|false|An option to disable logging of response body.|
+|config.request_masks|{}|An option to mask a specific request body field.|
+|config.response_masks|{}|An option to mask a specific response body field.|
 
 ## Other integrations
 
