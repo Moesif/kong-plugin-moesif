@@ -26,7 +26,7 @@ function MoesifLogHandler:access(conf)
     if content_type and string_find(content_type:lower(), "application/x-www-form-urlencoded", nil, true) then
       req_post_args, err, mimetype = kong.request.get_body()
     end
-    ngx.ctx.api_version = conf.api_version	  
+    ngx.ctx.api_version = conf.api_version
 -- keep in memory the bodies for this request
   ngx.ctx.moesif = {
     req_body = req_body,
@@ -56,7 +56,7 @@ function MoesifLogHandler:init_worker()
 end
 
 MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "0.1.6"
+MoesifLogHandler.VERSION = "0.1.7"
 
 -- Plugin version
 plugin_version = MoesifLogHandler.VERSION
