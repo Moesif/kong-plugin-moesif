@@ -158,6 +158,14 @@ function _M.serialize(ngx, conf)
   local request_body_entity
   local response_body_entity
 
+  local response_headers
+  response_headers = res_get_headers()
+
+  -- Add Transaction Id to the response header
+  if not conf.disable_transaction_id and transaction_id ~= nil then
+    response_headers["X-Moesif-Transaction-Id"] = generated_uuid
+  end
+
   if conf.disable_capture_request_body then
     request_body_entity = nil
   else
@@ -219,7 +227,7 @@ function _M.serialize(ngx, conf)
       time = os.date("!%Y-%m-%dT%H:%M:%S.", ngx_now()) .. string.format("%d",(ngx_now()- string.format("%d",ngx_now()))*1000),
       status = ngx.status,
       ip_address = Nil,
-      headers = res_get_headers(),
+      headers = response_headers,
       body = response_body_entity,
     },
     session_token = session_token_entity,
