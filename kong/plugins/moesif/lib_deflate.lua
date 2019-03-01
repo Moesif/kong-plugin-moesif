@@ -1954,19 +1954,6 @@ local function CompressZlibInternal(str, dictionary, configs)
 	return result, padding_bitlen
 end
 
-function dump(o)
-   if type(o) == 'table' then
-      local s = '{ '
-      for k,v in pairs(o) do
-         if type(k) ~= 'number' then k = '"'..k..'"' end
-         s = s .. '['..k..'] = ' .. dump(v) .. ','
-      end
-      return s .. '} '
-   else
-      return tostring(o)
-   end
-end
-
 --- Compress using the raw deflate format.
 -- @param str [string] The data to be compressed.
 -- @param configs [table/nil] The configuration table to control the compression

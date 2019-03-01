@@ -9,6 +9,7 @@ return {
     disable_capture_response_body = {default = false, type = "boolean"},
     request_masks = {default = {}, type = "array"},
     response_masks = {default = {}, type = "array"},
-    batch_size = {default = 25, type = "number"}
+    batch_size = {default = 25, type = "number"},
+    disable_transaction_id = {default = false, type = "boolean"},
   }
 }
