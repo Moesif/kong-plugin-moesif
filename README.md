@@ -4,7 +4,7 @@ The [Moesif Kong plugin](https://docs.konghq.com/hub/moesif/kong-plugin-moesif/)
 with [Moesif API Analytics](https://www.moesif.com).
 
 - Kong is an open source API gateway and management layer.
-- Moesif is an API analytics and debugging service.
+- Moesif is an API analytics and monitoring service.
 
 When enabled, this plugin will capture API requests and responses and log to Moesif API Insights for easy inspecting and real-time debugging of your API traffic.
 Support for REST, GraphQL, Ethereum Web3, JSON-RPC, SOAP, & more
@@ -50,7 +50,12 @@ curl -X POST http://localhost:8001/plugins \
     --data "config.application_id=MY_MOESIF_APPLICATION_ID"
 ```
 
-- `config.application_id`: You can find your Moesif Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _App Setup_
+- `config.application_id`: Your Moesif Application Id can be found in the [_Moesif Portal_](https://www.moesif.com/).
+After signing up for a Moesif account, your Moesif Application Id will be displayed during the onboarding steps. 
+
+You can always find your Moesif Application Id at any time by logging 
+into the [_Moesif Portal_](https://www.moesif.com/), click on the top right menu,
+and then clicking _Installation_.
 
 ### Enabling the plugin on a Service
 
