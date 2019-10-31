@@ -90,7 +90,7 @@ function MoesifLogHandler:init_worker()
 end
 
 MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "0.1.9"
+MoesifLogHandler.VERSION = "0.2.0"
 
 -- Plugin version
 plugin_version = MoesifLogHandler.VERSION

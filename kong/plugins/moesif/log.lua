@@ -23,14 +23,20 @@ local connect = require "kong.plugins.moesif.connection"
 -- @param `parsed_url` contains the host details
 -- @param `message`  Message to be logged
 -- @return `payload` http payload
-local function generate_post_payload(parsed_url, access_token, message,application_id)
+local function generate_post_payload(parsed_url, access_token, message, application_id, debug)
   local body = cjson.encode(message)
-  ngx_log(ngx.DEBUG, "[moesif] application_id: ", application_id)
+  if debug then 
+    ngx_log(ngx.DEBUG, "[moesif] application_id: ", application_id)
+  end
   local ok, compressed_body = pcall(compress["CompressDeflate"], compress, body)
   if not ok then
-    ngx_log(ngx_log_ERR, "[moesif] failed to compress body: ", compressed_body)
+    if debug then 
+      ngx_log(ngx_log_ERR, "[moesif] failed to compress body: ", compressed_body)
+    end
   else
-    ngx_log(ngx.DEBUG, " [moesif]  ", "successfully compressed body")
+    if debug then 
+      ngx_log(ngx.DEBUG, " [moesif]  ", "successfully compressed body")
+    end
     body = compressed_body
   end
 
@@ -47,8 +53,9 @@ end
 local function send_payload(sock, parsed_url, batch_events)
   local application_id = configuration.application_id
   local access_token = configuration.access_token
+  local debug = configuration.debug
 
-  ok, err = sock:send(generate_post_payload(parsed_url, access_token, batch_events, application_id) .. "\r\n")
+  local ok, err = sock:send(generate_post_payload(parsed_url, access_token, batch_events, application_id, debug) .. "\r\n")
   if not ok then
     ngx_log(ngx_log_ERR, "[moesif] failed to send data to " .. host .. ":" .. tostring(port) .. ": ", err)
   else
@@ -56,16 +63,20 @@ local function send_payload(sock, parsed_url, batch_events)
   end
 
   -- Read the response
-  send_event_response = helper.read_socket_data(sock)
+  local send_event_response = helper.read_socket_data(sock)
 
   -- Check if the application configuration is updated
   local response_etag = string.match(send_event_response, "ETag: (%a+)")
   if (response_etag ~= nil) and (configuration["ETag"] ~= response_etag) and (os.time() > configuration["last_updated_time"] + 300) then
     local resp =  get_config(false, configuration)
     if not resp then
-      ngx_log(ngx_log_ERR, "[moesif] failed to get application config, setting the sample_rate to default ", err)
+      if debug then 
+        ngx_log(ngx_log_ERR, "[moesif] failed to get application config, setting the sample_rate to default ", err)
+      end
     else
-      ngx_log(ngx.DEBUG, "[moesif] successfully fetched the application configuration" , ok)
+      if debug then 
+        ngx_log(ngx.DEBUG, "[moesif] successfully fetched the application configuration" , ok)
+      end
     end
   end
 end
@@ -87,22 +98,30 @@ function get_config(premature, conf)
     "GET", parsed_url.path, parsed_url.host, conf.application_id)
 
   -- Send the request
-  ok, err = sock:send(payload .. "\r\n")
+  local ok, err = sock:send(payload .. "\r\n")
   if not ok then
-    ngx_log(ngx_log_ERR, "[moesif] failed to send data to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
+    if conf.debug then 
+      ngx_log(ngx_log_ERR, "[moesif] failed to send data to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
+    end
   else
-    ngx_log(ngx.DEBUG, "[moesif] Successfully send request to fetch the application configuration " , ok)
+    if conf.debug then
+      ngx_log(ngx.DEBUG, "[moesif] Successfully send request to fetch the application configuration " , ok)
+    end
   end
 
   -- Read the response
-  config_response = helper.read_socket_data(sock)
+  local config_response = helper.read_socket_data(sock)
 
   ok, err = sock:setkeepalive(conf.keepalive)
   if not ok then
-    ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. host .. ":" .. tostring(port) .. ": ", err)
+    if conf.debug then
+      ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. host .. ":" .. tostring(port) .. ": ", err)
+    end
     return
    else
-     ngx_log(ngx.DEBUG,"[moesif] success keep-alive", ok)
+    if conf.debug then
+      ngx_log(ngx.DEBUG,"[moesif] success keep-alive", ok)
+    end
   end
 
   -- Update the application configuration
@@ -141,7 +160,7 @@ local function send_events_batch(premature)
         local sock, parsed_url = connect.get_connection("/v1/events/batch", configuration)
         local batch_events = {}
         repeat
-          event = table.remove(queue)
+          local event = table.remove(queue)
           table.insert(batch_events, event)
           if (#batch_events == configuration.batch_size) then
             send_payload(sock, parsed_url, batch_events)
@@ -157,9 +176,11 @@ local function send_events_batch(premature)
           has_events = false
         end
 
-        ok, err = sock:setkeepalive(configuration.keepalive)
+        local ok, err = sock:setkeepalive(configuration.keepalive)
         if not ok then
-          ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
+          if configuration.debug then 
+            ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
+          end
           return
          else
            ngx_log(ngx.DEBUG,"[moesif] success keep-alive", ok)
@@ -179,7 +200,8 @@ end
 -- @param `premature`
 -- @param `conf`     Configuration table, holds http endpoint details
 -- @param `message`  Message to be logged
-local function log(premature, conf, message)
+-- @param `hash_key` Hash key of the config application Id
+local function log(premature, conf, message, hash_key)
   if premature then
     return
   end
@@ -192,23 +214,31 @@ local function log(premature, conf, message)
   end
 
   if conf.sample_rate >= random_percentage then
-    ngx_log(ngx.DEBUG, "[moesif] Event added to the queue")
+    if conf.debug then 
+      ngx_log(ngx.DEBUG, "[moesif] Event added to the queue")
+    end
     table.insert(queue_hashes[hash_key], message)
   else
-    ngx_log(ngx.DEBUG, "[moesif] Skipped Event", " due to sampling percentage: " .. tostring(conf.sample_rate) .. " and random number: " .. tostring(random_percentage))
+    if conf.debug then 
+      ngx_log(ngx.DEBUG, "[moesif] Skipped Event", " due to sampling percentage: " .. tostring(conf.sample_rate) .. " and random number: " .. tostring(random_percentage))
+    end
   end
 end
 
 function _M.execute(conf, message)
   -- Hash key of the config application Id
-  hash_key = ngx_md5(conf.application_id)
+  local hash_key = ngx_md5(conf.application_id)
 
   if config_hashes[hash_key] == nil then
     local ok, err = ngx_timer_at(0, get_config, conf)
     if not ok then
-      ngx_log(ngx_log_ERR, "[moesif] failed to get application config, setting the sample_rate to default ", err)
+      if conf.debug then 
+        ngx_log(ngx_log_ERR, "[moesif] failed to get application config, setting the sample_rate to default ", err)
+      end
     else
-      ngx_log(ngx.DEBUG, "[moesif] successfully fetched the application configuration" , ok)
+      if conf.debug then 
+        ngx_log(ngx.DEBUG, "[moesif] successfully fetched the application configuration" , ok)
+      end
     end
     conf["sample_rate"] = 100
     conf["last_updated_time"] = os.time()
@@ -219,9 +249,11 @@ function _M.execute(conf, message)
     queue_hashes[hash_key] = create_new_table
   end
 
-  local ok, err = ngx_timer_at(0, log, conf, message)
+  local ok, err = ngx_timer_at(0, log, conf, message, hash_key)
   if not ok then
-    ngx_log(ngx_log_ERR, "[moesif] failed to create timer: ", err)
+    if conf.debug then 
+      ngx_log(ngx_log_ERR, "[moesif] failed to create timer: ", err)
+    end
   end
 end
 

@@ -42,7 +42,7 @@ function getClientIpFromXForwardedFor(value)
   end
 
   if type(value) ~= "string" then
-    ngx_log(ngx.DEBUG, " Expected string got type - : ", type(value))
+    ngx_log(ngx.DEBUG, " X-Forwarded-For Ip Expected string got type - : ", type(value))
     return nil
   end
 
@@ -52,15 +52,19 @@ function getClientIpFromXForwardedFor(value)
   -- and the left-most IP address is the IP address of the originating client.
   -- source: http://docs.aws.amazon.com/elasticloadbalancing/latest/classic/x-forwarded-headers.html
   -- Azure Web App's also adds a port for some reason, so we'll only use the first part (the IP)
-  forwardedIps = {}
+  local forwardedIps = {}
 
   for word in string.gmatch(value, '([^,]+)') do
-    ip = string.gsub(word, "%s+", "")
-    if string.match(value, ":") then
-        splitted = string.match(value, "(.*)%:")
-        table.insert(forwardedIps, splitted)
-      else
-        table.insert(forwardedIps, ip)
+    local ip = string.gsub(word, "%s+", "")
+    if #{ip:match("^"..(("([a-fA-F0-9]*):"):rep(8):gsub(":$","$")))} == 8 then
+      table.insert(forwardedIps, ip)
+     else 
+      if string.match(ip, ":") then
+          local splitted = string.match(ip, "(.*)%:")
+          table.insert(forwardedIps, splitted)
+        else
+          table.insert(forwardedIps, ip)
+      end
     end
   end
 
@@ -73,7 +77,7 @@ end
 
 -- Function to check if it is valid Ip Address
 function is_ip(value)
- ip_type = get_ip_type(value)
+ local ip_type = get_ip_type(value)
  if ip_type == 1 or ip_type == 2 then
   return true
  else
@@ -89,7 +93,7 @@ function get_client_ip(req_headers)
   end
 
   -- Load-balancers (AWS ELB) or proxies.
-  xForwardedFor = getClientIpFromXForwardedFor(req_headers["x-forwarded-for"]);
+  local xForwardedFor = getClientIpFromXForwardedFor(req_headers["x-forwarded-for"]);
   if (is_ip(xForwardedFor)) then
       return xForwardedFor
   end
