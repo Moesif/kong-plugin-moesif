@@ -150,6 +150,14 @@ Here's a list of all the parameters which can be used in this plugin's configura
 |config.disable_capture_response_body|false|An option to disable logging of response body.|
 |config.request_masks|{}|An option to mask a specific request body field.|
 |config.response_masks|{}|An option to mask a specific response body field.|
+|config.debug|false|An option if set to true, prints internal log messages for debugging integration issues.|
+
+## Tested Version
+Moesif has validated kong-plugin-moesif against the following Kong version.
+
+|   Kong  |
+| ------- |
+|  1.4.0  |
 
 ## Other integrations
 

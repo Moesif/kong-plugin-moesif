@@ -18,18 +18,24 @@ function _M.get_connection(url_path, conf)
   sock:settimeout(conf.timeout)
   local api_version = conf.api_version
   ngx.ctx.api_version = api_version
-  ok, err = sock:connect(host, port)
+  local ok, err = sock:connect(host, port)
   if not ok then
-    ngx_log(ngx_log_ERR, "[moesif] failed to connect to " .. host .. ":" .. tostring(port) .. ": ", err)
+    if conf.debug then 
+      ngx_log(ngx_log_ERR, "[moesif] failed to connect to " .. host .. ":" .. tostring(port) .. ": ", err)
+    end
     return
   else
-    ngx_log(ngx.DEBUG, "[moesif] Successfully created connection " , ok)
+    if conf.debug then
+      ngx_log(ngx.DEBUG, "[moesif] Successfully created connection " , ok)
+    end
   end
 
   if parsed_url.scheme == HTTPS then
     local _, err = sock:sslhandshake(true, host, false)
     if err then
-      ngx_log(ngx_log_ERR, "[moesif] failed to do SSL handshake with " .. host .. ":" .. tostring(port) .. ": ", err)
+      if conf.debug then 
+        ngx_log(ngx_log_ERR, "[moesif] failed to do SSL handshake with " .. host .. ":" .. tostring(port) .. ": ", err)
+      end
     end
   end
   return sock, parsed_url

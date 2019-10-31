@@ -11,5 +11,6 @@ return {
     response_masks = {default = {}, type = "array"},
     batch_size = {default = 25, type = "number"},
     disable_transaction_id = {default = false, type = "boolean"},
+    debug = {default = false, type = "boolean"},
   }
 }
