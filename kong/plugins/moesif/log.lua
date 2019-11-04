@@ -75,7 +75,7 @@ local function send_payload(sock, parsed_url, batch_events)
       end
     else
       if debug then 
-        ngx_log(ngx.DEBUG, "[moesif] successfully fetched the application configuration" , ok)
+        ngx_log(ngx.DEBUG, "[moesif] successfully fetched the application configuration " , ok)
       end
     end
   end
@@ -115,7 +115,7 @@ function get_config(premature, conf)
   ok, err = sock:setkeepalive(conf.keepalive)
   if not ok then
     if conf.debug then
-      ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. host .. ":" .. tostring(port) .. ": ", err)
+      ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
     end
     return
    else
@@ -126,7 +126,7 @@ function get_config(premature, conf)
 
   -- Update the application configuration
   if config_response ~= nil then
-    local response_body = cjson.decode(config_response:match("(%{.-%})"))
+    local response_body = cjson.decode(config_response:match("(%{.*})"))
     local config_tag = string.match(config_response, "ETag: (%a+)")
 
     if config_tag ~= nil then
@@ -237,7 +237,7 @@ function _M.execute(conf, message)
       end
     else
       if conf.debug then 
-        ngx_log(ngx.DEBUG, "[moesif] successfully fetched the application configuration" , ok)
+        ngx_log(ngx.DEBUG, "[moesif] successfully fetched the application configuration " , ok)
       end
     end
     conf["sample_rate"] = 100

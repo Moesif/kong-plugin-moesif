@@ -6,6 +6,7 @@ local string_find = string.find
 local req_read_body = ngx.req.read_body
 local req_get_headers = ngx.req.get_headers
 local req_get_body_data = ngx.req.get_body_data
+local transaction_id = nil
 
 local MoesifLogHandler = BasePlugin:extend()
 
@@ -30,7 +31,7 @@ function MoesifLogHandler:access(conf)
   -- Add Transaction Id to the request header
   if not conf.disable_transaction_id then
     if headers["X-Moesif-Transaction-Id"] ~= nil then
-      req_trans_id = headers["X-Moesif-Transaction-Id"]
+      local req_trans_id = headers["X-Moesif-Transaction-Id"]
       if req_trans_id ~= nil and req_trans_id:gsub("%s+", "") ~= "" then
         transaction_id = req_trans_id
       else
@@ -45,6 +46,8 @@ function MoesifLogHandler:access(conf)
 
   local req_body, res_body = "", ""
   local req_post_args = {}
+  local err = nil
+  local mimetype = nil
 
     req_read_body()
     req_body = req_get_body_data()
@@ -90,7 +93,7 @@ function MoesifLogHandler:init_worker()
 end
 
 MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "0.2.0"
+MoesifLogHandler.VERSION = "0.2.1"
 
 -- Plugin version
 plugin_version = MoesifLogHandler.VERSION
