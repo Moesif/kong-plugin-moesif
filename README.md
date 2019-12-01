@@ -26,21 +26,28 @@ luarocks install --server=http://luarocks.org/manifests/moesif kong-plugin-moesi
 ```
 
 ### 2. Update your loaded plugins list
-In your `kong.conf`, append `moesif` to the `plugins` field
-(if using an older version of Kong, append to the field `custom_plugins`).
+In your `kong.conf`, append `moesif` to the `plugins` field (or `custom_plugins` if old version of Kong). Make sure the field is not commented out.
 
 ```yaml
-plugins = bundled, moesif        # Comma-separated list of plugins this node
+plugins = bundled,moesif         # Comma-separated list of plugins this node
                                  # should load. By default, only plugins
                                  # bundled in official distributions are
                                  # loaded via the `bundled` keyword.
 ```
 
-### 3. Enable the Moesif plugin globally
+
+If you don't have a `kong.conf`, create one from the default using the following command: 
+`cp /etc/kong/kong.conf.default /etc/kong/kong.conf`
+
+### 3. Restart Kong
+
+### 4. Enable the Moesif plugin
 
 ```bash
-curl -i -X POST --url http://localhost:8001/plugins/ --data "name=kong-plugin-moesif" --data "config.application_id={{props.appId}}";
+curl -i -X POST --url http://localhost:8001/plugins/ --data "name=moesif" --data "config.application_id=YOUR_APPLICATION_ID";
 ```
+
+If you experience errors, try restarting Kong and then enable the plugin.
 
 ## How to use
 
@@ -63,7 +70,7 @@ and will be run on every request. Read the [Plugin Reference](https://docs.kongh
 
 ```
 curl -X POST http://localhost:8001/plugins \
-    --data "name=kong-plugin-moesif"  \
+    --data "name=moesif"  \
     --data "config.application_id=MY_MOESIF_APPLICATION_ID"
 ```
 
@@ -80,7 +87,7 @@ Configure this plugin on a [Service](https://docs.konghq.com/1.0.x/admin-api/#se
 
 ```
 curl -X POST http://kong:8001/services/{service}/plugins \
-    --data "name=kong-plugin-moesif"  \
+    --data "name=moesif"  \
     --data "config.application_id=MY_MOESIF_APPLICATION_ID"
 ```
 
@@ -95,7 +102,7 @@ Configure this plugin on a [Route](https://docs.konghq.com/1.0.x/admin-api/#Rout
 
 ```
 curl -X POST http://kong:8001/routes/{route_id}/plugins \
-    --data "name=kong-plugin-moesif"  \
+    --data "name=moesif"  \
     --data "config.application_id=MY_MOESIF_APPLICATION_ID"
 ```
 - `config.application_id`: You can find your Moesif Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _App Setup_
@@ -107,7 +114,7 @@ You can use the `http://localhost:8001/plugins` endpoint to enable this plugin o
 
 ```
 curl -X POST http://kong:8001/plugins \
-    --data "name=kong-plugin-moesif" \
+    --data "name=moesif" \
     --data "consumer_id={consumer_id}"  \
     --data "config.application_id=MY_MOESIF_APPLICATION_ID"
 ```
@@ -125,7 +132,7 @@ you can configure this plugin on top of such an API by making the following requ
 
 ```
 curl -X POST http://kong:8001/apis/{api}/plugins \
-    --data "name=kong-plugin-moesif"  \
+    --data "name=moesif"  \
     --data "config.application_id=MY_MOESIF_APPLICATION_ID"
 ```
 
