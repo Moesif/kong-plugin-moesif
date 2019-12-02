@@ -1,7 +1,7 @@
 package = "kong-plugin-moesif"  -- TODO: rename, must match the info in the filename of this rockspec!
                                   -- as a convention; stick to the prefix: `kong-plugin-`
-version = "0.2.1-1"               -- TODO: renumber, must match the info in the filename of this rockspec!
--- The version '0.2.1' is the source code version, the trailing '1' is the version of this rockspec.
+version = "0.2.2-1"               -- TODO: renumber, must match the info in the filename of this rockspec!
+-- The version '0.2.2' is the source code version, the trailing '1' is the version of this rockspec.
 -- whenever the source version changes, the rockspec should be reset to 1. The rockspec version is only
 -- updated (incremented) when this file changes, but the source remains the same.
 
@@ -12,7 +12,7 @@ local pluginName = package:match("^kong%-plugin%-(.+)$")  -- "moesif"
 supported_platforms = {"linux", "macosx"}
 source = {
   url = "git://github.com/Moesif/kong-plugin-moesif/",
-  tag = "0.2.1"
+  tag = "0.2.2"
 }
 
 description = {
@@ -33,6 +33,8 @@ build = {
     ["kong.plugins.moesif.moesif_ser"] = "kong/plugins/moesif/moesif_ser.lua",
     ["kong.plugins.moesif.helpers"] = "kong/plugins/moesif/helpers.lua",
     ["kong.plugins.moesif.connection"] = "kong/plugins/moesif/connection.lua",
-    ["kong.plugins.moesif.lib_deflate"] = "kong/plugins/moesif/lib_deflate.lua"
+    ["kong.plugins.moesif.lib_deflate"] = "kong/plugins/moesif/lib_deflate.lua",
+    ["kong.plugins.moesif.client_ip"] = "kong/plugins/moesif/client_ip.lua",
+    ["kong.plugins.moesif.zzlib"] = "kong/plugins/moesif/zzlib.lua"
   }
 }
