@@ -17,6 +17,7 @@ local ngx_md5 = ngx.md5
 local compress = require "kong.plugins.moesif.lib_deflate"
 local helper = require "kong.plugins.moesif.helpers"
 local connect = require "kong.plugins.moesif.connection"
+local sampling_rate = 100
 
 -- Generates http payload .
 -- @param `method` http method to be used to send data
@@ -66,8 +67,8 @@ local function send_payload(sock, parsed_url, batch_events)
   local send_event_response = helper.read_socket_data(sock)
 
   -- Check if the application configuration is updated
-  local response_etag = string.match(send_event_response, "ETag: (%a+)")
-  if (response_etag ~= nil) and (configuration["ETag"] ~= response_etag) and (os.time() > configuration["last_updated_time"] + 300) then
+  local response_etag = string.match(send_event_response, "ETag%s*:%s*(.-)\n")
+  if (response_etag ~= nil) and (configuration["ETag"] ~= nil) and (configuration["ETag"] ~= response_etag) and (os.time() > configuration["last_updated_time"] + 300) then
     local resp =  get_config(false, configuration)
     if not resp then
       if debug then 
@@ -127,14 +128,18 @@ function get_config(premature, conf)
   -- Update the application configuration
   if config_response ~= nil then
     local response_body = cjson.decode(config_response:match("(%{.*})"))
-    local config_tag = string.match(config_response, "ETag: (%a+)")
+    local config_tag = string.match(config_response, "ETag%s*:%s*(.-)\n")
 
     if config_tag ~= nil then
      conf["ETag"] = config_tag
     end
 
     if (conf["sample_rate"] ~= nil) and (response_body ~= nil) then
-     conf["sample_rate"] = response_body["sample_rate"]
+      if (response_body["user_sample_rate"] ~= nil) then
+        conf["user_sample_rate"] = response_body["user_sample_rate"]
+      else 
+        conf["sample_rate"] = response_body["sample_rate"]
+      end
     end
 
     if conf["last_updated_time"] ~= nil then
@@ -213,14 +218,20 @@ local function log(premature, conf, message, hash_key)
     conf.sample_rate = 100
   end
 
-  if conf.sample_rate >= random_percentage then
+  if next(conf.user_sample_rate) ~= nil and message["user_id"] ~= nil and conf.user_sample_rate[message["user_id"]]~= nil then 
+    sampling_rate = conf.user_sample_rate[message["user_id"]]
+  else 
+    sampling_rate = conf.sample_rate
+  end
+
+  if sampling_rate >= random_percentage then
     if conf.debug then 
       ngx_log(ngx.DEBUG, "[moesif] Event added to the queue")
     end
     table.insert(queue_hashes[hash_key], message)
   else
     if conf.debug then 
-      ngx_log(ngx.DEBUG, "[moesif] Skipped Event", " due to sampling percentage: " .. tostring(conf.sample_rate) .. " and random number: " .. tostring(random_percentage))
+      ngx_log(ngx.DEBUG, "[moesif] Skipped Event", " due to sampling percentage: " .. tostring(sampling_rate) .. " and random number: " .. tostring(random_percentage))
     end
   end
 end
@@ -228,6 +239,12 @@ end
 function _M.execute(conf, message)
   -- Hash key of the config application Id
   local hash_key = ngx_md5(conf.application_id)
+
+  if message["user_id"] ~= nil then 
+    conf["user_id"] = message["user_id"]
+  else 
+    conf["user_id"] = nil
+  end
 
   if config_hashes[hash_key] == nil then
     local ok, err = ngx_timer_at(0, get_config, conf)
@@ -241,6 +258,7 @@ function _M.execute(conf, message)
       end
     end
     conf["sample_rate"] = 100
+    conf["user_sample_rate"] = {}
     conf["last_updated_time"] = os.time()
     conf["ETag"] = nil
     config_hashes[hash_key] = conf

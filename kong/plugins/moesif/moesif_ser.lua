@@ -81,6 +81,8 @@ function _M.serialize(ngx, conf)
 
   if req_get_headers()["x-consumer-custom-id"] ~= nil then
     user_id_entity = tostring(req_get_headers()["x-consumer-custom-id"])
+  elseif req_get_headers()["x-consumer-id"] ~= nil then
+    user_id_entity = tostring(req_get_headers()["x-consumer-id"])
   else
     user_id_entity = nil
   end
