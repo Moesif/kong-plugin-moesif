@@ -228,6 +228,7 @@ local function log(premature, conf, message, hash_key)
     if conf.debug then 
       ngx_log(ngx.DEBUG, "[moesif] Event added to the queue")
     end
+    message["weight"] = (sampling_rate == 0 and 1 or math.floor(100 / sampling_rate))
     table.insert(queue_hashes[hash_key], message)
   else
     if conf.debug then 
