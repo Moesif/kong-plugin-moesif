@@ -121,7 +121,8 @@ function _M.serialize(ngx, conf)
       body = response_body_entity,
     },
     session_token = session_token_entity,
-    user_id = user_id_entity
+    user_id = user_id_entity,
+    direction = "Incoming"
 }
 end
 
