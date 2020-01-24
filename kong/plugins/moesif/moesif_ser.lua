@@ -9,17 +9,52 @@ local ngx_log = ngx.log
 local ngx_log_ERR = ngx.ERR
 local client_ip = require "kong.plugins.moesif.client_ip"
 local zzlib = require "kong.plugins.moesif.zzlib"
+local base64 = require "kong.plugins.moesif.base64"
 
 function mask_body(body, masks)
   if masks == nil then return body end
   if body == nil then return body end
-  for mask_key, mask_value in pairs(masks) do
-    if body[mask_value] then body[mask_value] = nil end
+  local mask_array = {}
+  for field in masks[1]:gmatch('[^,%s]+') do
+    table.insert(mask_array, field)
+  end
+  for mask_key, mask_value in pairs(mask_array) do
+    if body[mask_value] ~= nil then body[mask_value] = nil end
       for body_key, body_value in next, body do
           if type(body_value)=="table" then mask_body(body_value, masks) end
       end
   end
   return body
+end
+
+function transform_body(body)
+  if type(body) == "string" and string.sub(body, 1, 1) == "{" or string.sub(body, 1, 1) == "[" then
+    return cjson.decode(body), 'json'
+  else
+    return base64.encode(body), 'base64'
+  end
+end
+
+function process_data(body, mask_fields)
+  local body_entity = nil
+  local body_transfer_encoding = nil
+  
+  if next(mask_fields) == nil then
+    body_entity, body_transfer_encoding = transform_body(body)
+  else
+    local is_decoded, decoded_body = pcall(cjson.decode, body)
+    if not is_decoded then 
+      body_entity, body_transfer_encoding = transform_body(body)
+    else
+      local ok, mask_result = pcall(mask_body, decoded_body, mask_fields)
+      if not ok then
+        body_entity, body_transfer_encoding = transform_body(body)
+      else
+        body_entity, body_transfer_encoding = transform_body(cjson.encode(mask_result))
+      end
+    end 
+  end
+  return body_entity, body_transfer_encoding
 end
 
 function _M.serialize(ngx, conf)
@@ -28,6 +63,8 @@ function _M.serialize(ngx, conf)
   local user_id_entity
   local request_body_entity
   local response_body_entity
+  local req_body_transfer_encoding = nil
+  local rsp_body_transfer_encoding = nil
 
   local response_headers
   response_headers = res_get_headers()
@@ -37,34 +74,16 @@ function _M.serialize(ngx, conf)
     response_headers["X-Moesif-Transaction-Id"] = generated_uuid
   end
 
-  if conf.disable_capture_request_body then
+  if moesif_ctx.req_body == nil or conf.disable_capture_request_body then
     request_body_entity = nil
   else
-    if next(conf.request_masks) == nil then
-      request_body_entity = moesif_ctx.req_body
-    else
-      ok, mask_result = pcall(mask_body, cjson.decode(moesif_ctx.req_body), conf.request_masks)
-      if not ok then
-        request_body_entity = moesif_ctx.req_body
-      else
-        request_body_entity = cjson.encode(mask_result)
-      end
-    end
+    request_body_entity, req_body_transfer_encoding = process_data(moesif_ctx.req_body, conf.request_masks)
   end
 
-  if conf.disable_capture_response_body then
+  if moesif_ctx.res_body == nil or conf.disable_capture_response_body then
     response_body_entity = nil
   else
-    if next(conf.response_masks) == nil then
-      response_body_entity = moesif_ctx.res_body
-    else
-      ok, mask_result = pcall(mask_body, cjson.decode(moesif_ctx.res_body), conf.response_masks)
-      if not ok then
-        response_body_entity = moesif_ctx.res_body
-      else
-        response_body_entity = cjson.encode(mask_result)
-      end
-    end
+    response_body_entity, rsp_body_transfer_encoding = process_data(moesif_ctx.res_body, conf.response_masks)
   end
 
   if ngx.ctx.authenticated_credential ~= nil then
@@ -111,7 +130,8 @@ function _M.serialize(ngx, conf)
       verb = req_get_method(),
       ip_address = client_ip.get_client_ip(req_get_headers()),
       api_version = ngx.ctx.api_version,
-      time = os.date("!%Y-%m-%dT%H:%M:%S.", req_start_time()) .. string.format("%d",(req_start_time()- string.format("%d", req_start_time()))*1000)
+      time = os.date("!%Y-%m-%dT%H:%M:%S.", req_start_time()) .. string.format("%d",(req_start_time()- string.format("%d", req_start_time()))*1000),
+      transfer_encoding = req_body_transfer_encoding,
     },
     response = {
       time = os.date("!%Y-%m-%dT%H:%M:%S.", ngx_now()) .. string.format("%d",(ngx_now()- string.format("%d",ngx_now()))*1000),
@@ -119,6 +139,7 @@ function _M.serialize(ngx, conf)
       ip_address = Nil,
       headers = response_headers,
       body = response_body_entity,
+      transfer_encoding = rsp_body_transfer_encoding,
     },
     session_token = session_token_entity,
     user_id = user_id_entity,
