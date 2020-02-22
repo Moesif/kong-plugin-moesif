@@ -218,7 +218,7 @@ local function log(premature, conf, message, hash_key)
     conf.sample_rate = 100
   end
 
-  if next(conf.user_sample_rate) ~= nil and message["user_id"] ~= nil and conf.user_sample_rate[message["user_id"]]~= nil then 
+  if type(conf.user_sample_rate) == "table" and next(conf.user_sample_rate) ~= nil and message["user_id"] ~= nil and conf.user_sample_rate[message["user_id"]]~= nil then 
     sampling_rate = conf.user_sample_rate[message["user_id"]]
   else 
     sampling_rate = conf.sample_rate
