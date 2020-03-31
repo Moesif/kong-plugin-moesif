@@ -155,8 +155,10 @@ Here's a list of all the parameters which can be used in this plugin's configura
 |config.api_version|1.0|An optional API Version you want to tag this request with in Moesif.|
 |config.disable_capture_request_body|false|An option to disable logging of request body.|
 |config.disable_capture_response_body|false|An option to disable logging of response body.|
-|config.request_masks|{}|An option to mask a specific request body field.|
-|config.response_masks|{}|An option to mask a specific response body field.|
+|config.request_header_masks|{}|An option to mask a specific request header field.|
+|config.request_body_masks|{}|An option to mask a specific request body field.|
+|config.response_header_masks|{}|An option to mask a specific response header field.|
+|config.response_body_masks|{}|An option to mask a specific response body field.|
 |config.debug|false|An option if set to true, prints internal log messages for debugging integration issues.|
 
 ## Tested Version

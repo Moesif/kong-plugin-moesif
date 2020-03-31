@@ -89,6 +89,32 @@ function decompress_body(body, masks)
   return body_entity, body_transfer_encoding
 end
 
+function mask_headers(headers, mask_fields)
+  local mask_headers = nil
+    
+  for k,v in pairs(mask_fields) do
+    mask_fields[k] = v:lower()
+  end
+
+  local ok, mask_result = pcall(mask_body, headers, mask_fields)
+  if not ok then
+    mask_headers = headers
+  else
+    mask_headers = mask_result
+  end
+  return mask_headers
+end
+
+function mask_body_fields(body_masks_config, deprecated_body_masks_config)
+  local masks_fields = nil
+  if next(body_masks_config) == nil then
+    masks_fields = deprecated_body_masks_config
+  else
+    masks_fields = body_masks_config
+  end
+  return masks_fields
+end
+
 function _M.serialize(ngx, conf)
   local moesif_ctx = ngx.ctx.moesif or {}
   local session_token_entity
@@ -99,10 +125,20 @@ function _M.serialize(ngx, conf)
   local rsp_body_transfer_encoding = nil
 
   local request_headers
-  request_headers = req_get_headers()
-
   local response_headers
-  response_headers = res_get_headers()
+
+  if next(conf.request_header_masks) == nil then
+    request_headers = req_get_headers()
+  else
+    request_headers = mask_headers(req_get_headers(), conf.request_header_masks)
+  end
+
+  if next(conf.response_header_masks) == nil then
+    response_headers = res_get_headers()
+  else
+    response_headers = mask_headers(res_get_headers(), conf.response_header_masks)
+  end
+
 
   -- Add Transaction Id to the response header
   if not conf.disable_transaction_id and transaction_id ~= nil then
@@ -113,10 +149,11 @@ function _M.serialize(ngx, conf)
     request_body_entity = nil
   else
     local is_valid_request_body = utf8_validator.validate(moesif_ctx.req_body)
+    local request_body_masks = mask_body_fields(conf.request_body_masks, conf.request_masks)
     if not is_valid_request_body then
-      request_body_entity, req_body_transfer_encoding = decompress_body(moesif_ctx.req_body, conf.request_masks)
+      request_body_entity, req_body_transfer_encoding = decompress_body(moesif_ctx.req_body, request_body_masks)
     else
-      request_body_entity, req_body_transfer_encoding = process_data(moesif_ctx.req_body, conf.request_masks)
+      request_body_entity, req_body_transfer_encoding = process_data(moesif_ctx.req_body, request_body_masks)
     end 
   end
 
@@ -124,10 +161,11 @@ function _M.serialize(ngx, conf)
     response_body_entity = nil
   else
     local is_valid_response_body = utf8_validator.validate(moesif_ctx.res_body)
+    local response_body_masks = mask_body_fields(conf.response_body_masks, conf.response_masks)
     if not is_valid_response_body then
-      response_body_entity, rsp_body_transfer_encoding = decompress_body(moesif_ctx.res_body, conf.response_masks)
+      response_body_entity, rsp_body_transfer_encoding = decompress_body(moesif_ctx.res_body, response_body_masks)
     else
-      response_body_entity, rsp_body_transfer_encoding = process_data(moesif_ctx.res_body, conf.response_masks)
+      response_body_entity, rsp_body_transfer_encoding = process_data(moesif_ctx.res_body, response_body_masks)
     end
   end
 
