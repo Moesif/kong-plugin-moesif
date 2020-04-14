@@ -160,6 +160,8 @@ Here's a list of all the parameters which can be used in this plugin's configura
 |config.response_header_masks|{}|An option to mask a specific response header field.|
 |config.response_body_masks|{}|An option to mask a specific response body field.|
 |config.debug|false|An option if set to true, prints internal log messages for debugging integration issues.|
+|config.user_id_header||An optional field name to identify User from a request or response header.|
+|config.company_id_header||An optional field name to identify Company (Account) from a request or response header.|
 
 ## Tested Version
 Moesif has validated kong-plugin-moesif against the following Kong version.

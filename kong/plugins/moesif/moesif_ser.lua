@@ -119,6 +119,7 @@ function _M.serialize(ngx, conf)
   local moesif_ctx = ngx.ctx.moesif or {}
   local session_token_entity
   local user_id_entity
+  local company_id_entity
   local request_body_entity
   local response_body_entity
   local req_body_transfer_encoding = nil
@@ -181,7 +182,11 @@ function _M.serialize(ngx, conf)
     session_token_entity = nil
   end
 
-  if request_headers["x-consumer-custom-id"] ~= nil then
+  if request_headers[conf.user_id_header] ~= nil then
+    user_id_entity = tostring(request_headers[conf.user_id_header])
+  elseif response_headers[conf.user_id_header] ~= nil then
+    user_id_entity = tostring(response_headers[conf.user_id_header])
+  elseif request_headers["x-consumer-custom-id"] ~= nil then
     user_id_entity = tostring(request_headers["x-consumer-custom-id"])
   elseif request_headers["x-consumer-username"] ~= nil then
     user_id_entity = tostring(request_headers["x-consumer-username"])
@@ -189,6 +194,14 @@ function _M.serialize(ngx, conf)
     user_id_entity = tostring(request_headers["x-consumer-id"])
   else
     user_id_entity = nil
+  end
+
+  if request_headers[conf.company_id_header] ~= nil then
+    company_id_entity = tostring(request_headers[conf.company_id_header])
+  elseif response_headers[conf.company_id_header] ~= nil then
+    company_id_entity = tostring(response_headers[conf.company_id_header])
+  else 
+    company_id_entity = nil
   end
 
   return {
@@ -212,6 +225,7 @@ function _M.serialize(ngx, conf)
     },
     session_token = session_token_entity,
     user_id = user_id_entity,
+    company_id = company_id_entity,
     direction = "Incoming"
   }
 end
