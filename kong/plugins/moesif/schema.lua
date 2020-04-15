@@ -16,5 +16,7 @@ return {
     batch_size = {default = 25, type = "number"},
     disable_transaction_id = {default = false, type = "boolean"},
     debug = {default = false, type = "boolean"},
+    user_id_header = {default = "", type = "string"},
+    company_id_header = {default = "", type = "string"},
   }
 }
