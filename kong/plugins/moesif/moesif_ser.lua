@@ -16,11 +16,7 @@ local utf8_validator = require "kong.plugins.moesif.utf8_validator"
 function mask_body(body, masks)
   if masks == nil then return body end
   if body == nil then return body end
-  local mask_array = {}
-  for field in masks[1]:gmatch('[^,%s]+') do
-    table.insert(mask_array, field)
-  end
-  for mask_key, mask_value in pairs(mask_array) do
+  for mask_key, mask_value in pairs(masks) do
     if body[mask_value] ~= nil then body[mask_value] = nil end
       for body_key, body_value in next, body do
           if type(body_value)=="table" then mask_body(body_value, masks) end
