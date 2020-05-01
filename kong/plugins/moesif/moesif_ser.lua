@@ -11,7 +11,6 @@ local ngx_log_ERR = ngx.ERR
 local client_ip = require "kong.plugins.moesif.client_ip"
 local zzlib = require "kong.plugins.moesif.zzlib"
 local base64 = require "kong.plugins.moesif.base64"
-local utf8_validator = require "kong.plugins.moesif.utf8_validator"
 
 function mask_body(body, masks)
   if masks == nil then return body end
@@ -29,39 +28,28 @@ function base64_encode_body(body)
   return base64.encode(body), 'base64'
 end
 
-function transform_body(body)
-  if type(body) == "string" and string.sub(body, 1, 1) == "{" or string.sub(body, 1, 1) == "[" then
-    local decoded_body = cjson_safe.decode(body)
-    if not decoded_body then 
-      return base64_encode_body(body)
-    else
-      return decoded_body, 'json' 
-    end
-  else
-    return base64_encode_body(body)
-  end
+function is_valid_json(body)
+  return type(body) == "string" 
+      and string.sub(body, 1, 1) == "{" or string.sub(body, 1, 1) == "["
 end
 
 function process_data(body, mask_fields)
   local body_entity = nil
   local body_transfer_encoding = nil
-  
-  if next(mask_fields) == nil then
-    body_entity, body_transfer_encoding = transform_body(body)
+  local is_deserialised, deserialised_body = pcall(cjson_safe.decode, body)
+  if not is_deserialised  then
+    body_entity, body_transfer_encoding = base64_encode_body(body)
   else
-    local is_decoded, decoded_body = pcall(cjson_safe.decode, body)
-    if not is_decoded then 
-      body_entity, body_transfer_encoding = transform_body(body)
-    elseif (decoded_body ~= nil) then
-      local ok, mask_result = pcall(mask_body, decoded_body, mask_fields)
-      if not ok then
-        body_entity, body_transfer_encoding = transform_body(body)
-      else
-        body_entity, body_transfer_encoding = transform_body(cjson.encode(mask_result))
-      end
+    if next(mask_fields) == nil then
+        body_entity, body_transfer_encoding = deserialised_body, 'json' 
     else
-      body_entity, body_transfer_encoding = transform_body(body)
-    end 
+        local ok, mask_result = pcall(mask_body, deserialised_body, mask_fields)
+        if not ok then
+          body_entity, body_transfer_encoding = deserialised_body, 'json' 
+        else
+          body_entity, body_transfer_encoding = mask_result, 'json' 
+        end
+    end
   end
   return body_entity, body_transfer_encoding
 end
@@ -80,7 +68,11 @@ function decompress_body(body, masks)
     if debug then
       ngx_log(ngx.DEBUG, " [moesif]  ", "successfully decompressed body: ")
     end
-    body_entity, body_transfer_encoding = process_data(decompressed_body, masks)
+    if is_valid_json(decompressed_body) then 
+      body_entity, body_transfer_encoding = process_data(decompressed_body, masks)
+    else 
+      body_entity, body_transfer_encoding = base64_encode_body(decompressed_body)
+    end
   end
   return body_entity, body_transfer_encoding
 end
@@ -102,13 +94,24 @@ function mask_headers(headers, mask_fields)
 end
 
 function mask_body_fields(body_masks_config, deprecated_body_masks_config)
-  local masks_fields = nil
   if next(body_masks_config) == nil then
-    masks_fields = deprecated_body_masks_config
+    return deprecated_body_masks_config
   else
-    masks_fields = body_masks_config
+    return body_masks_config
   end
-  return masks_fields
+end
+
+function parse_body(headers, body, mask_fields)
+  local body_entity = nil
+  local body_transfer_encoding = nil
+  if headers["content-type"] ~= nil and string.find(headers["content-type"], "json") and is_valid_json(body) then 
+    body_entity, body_transfer_encoding = process_data(body, mask_fields)
+  elseif headers["content-encoding"] ~= nil and type(body) == "string" and string.find(headers["content-encoding"], "gzip") then
+    body_entity, body_transfer_encoding = decompress_body(body, mask_fields)
+  else
+    body_entity, body_transfer_encoding = base64_encode_body(body)
+  end
+  return body_entity, body_transfer_encoding
 end
 
 function _M.serialize(ngx, conf)
@@ -120,22 +123,16 @@ function _M.serialize(ngx, conf)
   local response_body_entity
   local req_body_transfer_encoding = nil
   local rsp_body_transfer_encoding = nil
+  local request_headers = req_get_headers()
+  local response_headers = res_get_headers()
 
-  local request_headers
-  local response_headers
-
-  if next(conf.request_header_masks) == nil then
-    request_headers = req_get_headers()
-  else
+  if next(conf.request_header_masks) ~= nil then
     request_headers = mask_headers(req_get_headers(), conf.request_header_masks)
   end
 
-  if next(conf.response_header_masks) == nil then
-    response_headers = res_get_headers()
-  else
+  if next(conf.response_header_masks) ~= nil then
     response_headers = mask_headers(res_get_headers(), conf.response_header_masks)
   end
-
 
   -- Add Transaction Id to the response header
   if not conf.disable_transaction_id and transaction_id ~= nil then
@@ -145,25 +142,15 @@ function _M.serialize(ngx, conf)
   if moesif_ctx.req_body == nil or conf.disable_capture_request_body then
     request_body_entity = nil
   else
-    local is_valid_request_body = utf8_validator.validate(moesif_ctx.req_body)
     local request_body_masks = mask_body_fields(conf.request_body_masks, conf.request_masks)
-    if not is_valid_request_body then
-      request_body_entity, req_body_transfer_encoding = decompress_body(moesif_ctx.req_body, request_body_masks)
-    else
-      request_body_entity, req_body_transfer_encoding = process_data(moesif_ctx.req_body, request_body_masks)
-    end 
+    request_body_entity, req_body_transfer_encoding = parse_body(request_headers, moesif_ctx.req_body, request_body_masks)
   end
 
   if moesif_ctx.res_body == nil or conf.disable_capture_response_body then
     response_body_entity = nil
   else
-    local is_valid_response_body = utf8_validator.validate(moesif_ctx.res_body)
     local response_body_masks = mask_body_fields(conf.response_body_masks, conf.response_masks)
-    if not is_valid_response_body then
-      response_body_entity, rsp_body_transfer_encoding = decompress_body(moesif_ctx.res_body, response_body_masks)
-    else
-      response_body_entity, rsp_body_transfer_encoding = process_data(moesif_ctx.res_body, response_body_masks)
-    end
+    response_body_entity, rsp_body_transfer_encoding = parse_body(response_headers, moesif_ctx.res_body, response_body_masks)
   end
 
   if ngx.ctx.authenticated_credential ~= nil then
