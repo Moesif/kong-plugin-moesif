@@ -25,26 +25,26 @@ local sampling_rate = 100
 -- @param `message`  Message to be logged
 -- @return `payload` http payload
 local function generate_post_payload(parsed_url, access_token, message, application_id, debug)
+  local payload = nil
   local body = cjson.encode(message)
-  if debug then 
-    ngx_log(ngx.DEBUG, "[moesif] application_id: ", application_id)
-  end
   local ok, compressed_body = pcall(compress["CompressDeflate"], compress, body)
   if not ok then
     if debug then 
       ngx_log(ngx_log_ERR, "[moesif] failed to compress body: ", compressed_body)
     end
+    payload = string_format(
+      "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
+      "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, #body, body)
+    return payload
   else
     if debug then 
       ngx_log(ngx.DEBUG, " [moesif]  ", "successfully compressed body")
     end
-    body = compressed_body
+    payload = string_format(
+      "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Encoding: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
+      "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, "deflate", #compressed_body, compressed_body)
+    return payload
   end
-
-  local payload = string_format(
-    "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Encoding: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
-    "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, "deflate", #body, body)
-  return payload
 end
 
 -- Send Payload
@@ -202,15 +202,10 @@ local function send_events_batch(premature)
 end
 
 -- Log to a Http end point.
--- @param `premature`
 -- @param `conf`     Configuration table, holds http endpoint details
 -- @param `message`  Message to be logged
 -- @param `hash_key` Hash key of the config application Id
-local function log(premature, conf, message, hash_key)
-  if premature then
-    return
-  end
-
+local function log(conf, message, hash_key)
   -- Sampling Events
   local random_percentage = math.random() * 100
 
@@ -268,12 +263,7 @@ function _M.execute(conf, message)
     queue_hashes[hash_key] = create_new_table
   end
 
-  local ok, err = ngx_timer_at(0, log, conf, message, hash_key)
-  if not ok then
-    if conf.debug then 
-      ngx_log(ngx_log_ERR, "[moesif] failed to create timer: ", err)
-    end
-  end
+  log(conf, message, hash_key)
 end
 
 -- Schedule Events batch job
