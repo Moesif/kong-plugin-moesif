@@ -225,15 +225,6 @@ local function log(conf, message, hash_key)
     end
     message["weight"] = (sampling_rate == 0 and 1 or math.floor(100 / sampling_rate))
     table.insert(queue_hashes[hash_key], message)
-
-    if #queue_hashes[hash_key] >= conf.batch_size then 
-      local ok, err = ngx_timer_at(0, send_events_batch)
-      if not ok then
-        if conf.debug then 
-          ngx_log(ngx_log_ERR, "[moesif] Error while sending events when queue size matches batch size ", err)
-        end
-      end
-    end
   else
     if conf.debug then 
       ngx_log(ngx.DEBUG, "[moesif] Skipped Event", " due to sampling percentage: " .. tostring(sampling_rate) .. " and random number: " .. tostring(random_percentage))
@@ -277,8 +268,8 @@ end
 
 -- Schedule Events batch job
 function _M.start_background_thread()
-  ngx.log(ngx.DEBUG, "[moesif] Scheduling Events batch job every 5 seconds")
-  local ok, err = ngx_timer_every(5, send_events_batch)
+  ngx.log(ngx.DEBUG, "[moesif] Scheduling Events batch job every 2 seconds")
+  local ok, err = ngx_timer_every(2, send_events_batch)
   if not ok then
       ngx.log(ngx.ERR, "[moesif] Error when scheduling the job: "..err)
   end
