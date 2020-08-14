@@ -58,7 +58,7 @@ local function send_payload(sock, parsed_url, batch_events)
 
   local ok, err = sock:send(generate_post_payload(parsed_url, access_token, batch_events, application_id, debug) .. "\r\n")
   if not ok then
-    ngx_log(ngx_log_ERR, "[moesif] failed to send data to " .. host .. ":" .. tostring(port) .. ": ", err)
+    ngx_log(ngx_log_ERR, "[moesif] failed to send data to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
   else
     ngx_log(ngx.DEBUG, "[moesif] Events sent successfully " , ok)
   end
@@ -163,33 +163,39 @@ local function send_events_batch(premature)
         -- Getting the configuration for this particular key
         configuration = config_hashes[key]
         local sock, parsed_url = connect.get_connection("/v1/events/batch", configuration)
-        local batch_events = {}
-        repeat
-          local event = table.remove(queue)
-          table.insert(batch_events, event)
-          if (#batch_events == configuration.batch_size) then
-            send_payload(sock, parsed_url, batch_events)
-          else if(#queue ==0 and #batch_events > 0) then
+        if type(sock) == "table" and next(sock) ~= nil then
+          local batch_events = {}
+          repeat
+            local event = table.remove(queue)
+            table.insert(batch_events, event)
+            if (#batch_events == configuration.batch_size) then
               send_payload(sock, parsed_url, batch_events)
+            else if(#queue ==0 and #batch_events > 0) then
+                send_payload(sock, parsed_url, batch_events)
+              end
             end
+          until #batch_events == configuration.batch_size or next(queue) == nil
+
+          if #queue > 0 then
+            has_events = true
+          else
+            has_events = false
           end
-        until #batch_events == configuration.batch_size or next(queue) == nil
 
-        if #queue > 0 then
-          has_events = true
-        else
-          has_events = false
-        end
-
-        local ok, err = sock:setkeepalive(configuration.keepalive)
-        if not ok then
+          local ok, err = sock:setkeepalive(configuration.keepalive)
+          if not ok then
+            if configuration.debug then 
+              ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
+            end
+            return
+          else
+            ngx_log(ngx.DEBUG,"[moesif] success keep-alive", ok)
+          end
+        else 
           if configuration.debug then 
-            ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
+            ngx_log(ngx.DEBUG, "[moesif] Failure to create socket connection for sending event to Moesif ")
           end
-          return
-         else
-           ngx_log(ngx.DEBUG,"[moesif] success keep-alive", ok)
-        end
+        end        
       else
         has_events = false
       end
