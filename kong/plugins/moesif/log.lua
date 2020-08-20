@@ -11,13 +11,15 @@ local ngx_timer_every = ngx.timer.every
 local configuration = nil
 local config_hashes = {}
 local queue_hashes = {}
-local moesif_events = "moesif_events_"
 local has_events = false
 local ngx_md5 = ngx.md5
 local compress = require "kong.plugins.moesif.lib_deflate"
 local helper = require "kong.plugins.moesif.helpers"
 local connect = require "kong.plugins.moesif.connection"
 local sampling_rate = 100
+local gc = 0
+local rec_event = 0
+local sent_event = 0
 
 -- Generates http payload .
 -- @param `method` http method to be used to send data
@@ -156,6 +158,7 @@ local function send_events_batch(premature)
     return
   end
 
+  local batch_events = {}
   repeat
     for key, queue in pairs(queue_hashes) do
       if #queue > 0 then
@@ -164,17 +167,24 @@ local function send_events_batch(premature)
         configuration = config_hashes[key]
         local sock, parsed_url = connect.get_connection("/v1/events/batch", configuration)
         if type(sock) == "table" and next(sock) ~= nil then
-          local batch_events = {}
+          local counter = 0
           repeat
             local event = table.remove(queue)
+            counter = counter + 1
             table.insert(batch_events, event)
             if (#batch_events == configuration.batch_size) then
-              send_payload(sock, parsed_url, batch_events)
+               if pcall(send_payload, sock, parsed_url, batch_events) then 
+                sent_event = sent_event + #batch_events
+               end
+               batch_events = {}
             else if(#queue ==0 and #batch_events > 0) then
-                send_payload(sock, parsed_url, batch_events)
+                if pcall(send_payload, sock, parsed_url, batch_events) then 
+                  sent_event = sent_event + #batch_events
+                end
+                batch_events = {}
               end
             end
-          until #batch_events == configuration.batch_size or next(queue) == nil
+          until counter == configuration.batch_size or next(queue) == nil
 
           if #queue > 0 then
             has_events = true
@@ -187,7 +197,16 @@ local function send_events_batch(premature)
             if configuration.debug then 
               ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
             end
-            return
+            local close_ok, close_err = sock:close()
+            if not close_ok then
+              if configuration.debug then
+                ngx_log(ngx_log_ERR,"[moesif] Failed to manually close socket connection ", close_err)
+              end
+            else
+              if configuration.debug then
+                ngx_log(ngx.DEBUG,"[moesif] success closing socket connection manually ")
+              end
+            end
           else
             ngx_log(ngx.DEBUG,"[moesif] success keep-alive", ok)
           end
@@ -195,6 +214,9 @@ local function send_events_batch(premature)
           if configuration.debug then 
             ngx_log(ngx.DEBUG, "[moesif] Failure to create socket connection for sending event to Moesif ")
           end
+        end
+        if configuration.debug then 
+          ngx.log(ngx.DEBUG, "[moesif] Received Event - "..tostring(rec_event).." and Sent Event - "..tostring(sent_event).." for pid - ".. ngx.worker.pid())
         end        
       else
         has_events = false
@@ -205,6 +227,13 @@ local function send_events_batch(premature)
   if not has_events then
     ngx_log(ngx.DEBUG, "[moesif] No events to read from the queue")
   end
+
+  -- Manually garbage collect every alternate cycle
+  gc = gc + 1 
+  if gc == 2 then 
+    collectgarbage()
+    gc = 0
+  end 
 end
 
 -- Log to a Http end point.
@@ -230,6 +259,7 @@ local function log(conf, message, hash_key)
       ngx_log(ngx.DEBUG, "[moesif] Event added to the queue")
     end
     message["weight"] = (sampling_rate == 0 and 1 or math.floor(100 / sampling_rate))
+    rec_event = rec_event + 1
     table.insert(queue_hashes[hash_key], message)
   else
     if conf.debug then 
@@ -264,9 +294,7 @@ function _M.execute(conf, message)
     conf["last_updated_time"] = os.time()
     conf["ETag"] = nil
     config_hashes[hash_key] = conf
-    local create_new_table = moesif_events..hash_key
-    create_new_table = {}
-    queue_hashes[hash_key] = create_new_table
+    queue_hashes[hash_key] = {} 
   end
 
   log(conf, message, hash_key)
