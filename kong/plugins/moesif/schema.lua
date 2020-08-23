@@ -13,7 +13,7 @@ return {
     response_masks = {default = {}, type = "array"},
     response_body_masks = {default = {}, type = "array"},
     response_header_masks = {default = {}, type = "array"},
-    batch_size = {default = 25, type = "number"},
+    batch_size = {default = 200, type = "number"},
     disable_transaction_id = {default = false, type = "boolean"},
     debug = {default = false, type = "boolean"},
     user_id_header = {default = "", type = "string"},
