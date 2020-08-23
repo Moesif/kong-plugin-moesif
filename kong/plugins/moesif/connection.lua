@@ -3,6 +3,8 @@ local helper = require "kong.plugins.moesif.helpers"
 local HTTPS = "https"
 local ngx_log = ngx.log
 local ngx_log_ERR = ngx.ERR
+local session 
+local sessionerr
 
 -- Create new connection
 -- @param `url_path`  api endpoint
@@ -31,10 +33,15 @@ function _M.get_connection(url_path, conf)
   end
 
   if parsed_url.scheme == HTTPS then
-    local _, err = sock:sslhandshake(true, host, false)
-    if err then
+    if session ~= nil then 
+      session, sessionerr = sock:sslhandshake(session, host, false)
+    else 
+      session, sessionerr = sock:sslhandshake(true, host, false)
+    end
+
+    if sessionerr then
       if conf.debug then 
-        ngx_log(ngx_log_ERR, "[moesif] failed to do SSL handshake with " .. host .. ":" .. tostring(port) .. ": ", err)
+        ngx_log(ngx_log_ERR, "[moesif] failed to do SSL handshake with " .. host .. ":" .. tostring(port) .. ": ", sessionerr)
       end
     end
   end
