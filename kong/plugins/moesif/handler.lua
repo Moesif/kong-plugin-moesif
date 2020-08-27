@@ -1,4 +1,5 @@
 local serializer = require "kong.plugins.moesif.moesif_ser"
+local governance = require "kong.plugins.moesif.moesif_gov"
 local BasePlugin = require "kong.plugins.base_plugin"
 local log = require "kong.plugins.moesif.log"
 local req_set_header = ngx.req.set_header
@@ -7,7 +8,7 @@ local req_read_body = ngx.req.read_body
 local req_get_headers = ngx.req.get_headers
 local req_get_body_data = ngx.req.get_body_data
 local transaction_id = nil
-
+local socket = require "socket"
 local MoesifLogHandler = BasePlugin:extend()
 
 -- function to generate uuid
@@ -26,6 +27,8 @@ end
 
 function MoesifLogHandler:access(conf)
   MoesifLogHandler.super.access(self)
+
+  local start_access_phase_time = socket.gettime()*1000
 
   local headers = req_get_headers()
   -- Add Transaction Id to the request header
@@ -62,6 +65,16 @@ function MoesifLogHandler:access(conf)
     res_body = res_body,
     req_post_args = req_post_args
   }
+
+  -- Check if need to block incoming request based on user-specified governance rules
+  local block_req = governance.govern_request(ngx, conf, start_access_phase_time)
+  if block_req == nil then 
+    if conf.debug then
+      ngx.log(ngx.DEBUG, '[moesif] No need to block incoming request.')
+    end
+    local end_access_phase_time = socket.gettime()*1000
+    ngx.log(ngx.DEBUG, "[moesif] access phase took time for non-blocking request - ".. tostring(end_access_phase_time - start_access_phase_time))
+  end
 end
 
  function MoesifLogHandler:body_filter(conf)
@@ -75,8 +88,11 @@ end
 
 function MoesifLogHandler:log(conf)
   MoesifLogHandler.super.log(self)
+  local start_log_phase_time = socket.gettime()*1000
   local message = serializer.serialize(ngx, conf)
   log.execute(conf, message)
+  local end_log_phase_time = socket.gettime()*1000
+  ngx.log(ngx.DEBUG, "[moesif] log phase took time - ".. tostring(end_log_phase_time - start_log_phase_time))
 end
 
 function MoesifLogHandler:header_filter(conf)
@@ -93,7 +109,7 @@ function MoesifLogHandler:init_worker()
 end
 
 MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "0.2.15"
+MoesifLogHandler.VERSION = "0.2.16"
 
 -- Plugin version
 plugin_version = MoesifLogHandler.VERSION
