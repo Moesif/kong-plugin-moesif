@@ -147,6 +147,21 @@ function get_config_internal(conf)
 end
 
 
+-- Get App Config function for Governance Rules
+-- @param `conf`     Configuration table, holds http endpoint details
+function _M.get_config_for_rules(conf)
+  local ok, err = pcall(get_config_internal, conf)
+  if not ok then
+    if conf.debug then
+      ngx_log(ngx_log_ERR, "[moesif] failed to get config for governance rules ", err)
+    end
+  else 
+    if conf.debug then
+      ngx_log(ngx.DEBUG, "[moesif] get config for governance rules success " , ok)
+    end
+  end
+end
+
 -- Get App Config function
 -- @param `premature`
 -- @param `conf`     Configuration table, holds http endpoint details
@@ -169,7 +184,7 @@ function get_config(premature, conf)
   local sok, serr = ngx_timer_at(60, get_config, conf)
   if not sok then
     if conf.debug then
-      ngx.log(ngx.ERR, "[moesif] Error when scheduling the get config : "..serr)
+      ngx_log(ngx.ERR, "[moesif] Error when scheduling the get config : ", serr)
     end
   else
     if conf.debug then

@@ -6,6 +6,7 @@ local ngx_log_ERR = ngx.ERR
 local ngx_md5 = ngx.md5
 local connect = require "kong.plugins.moesif.connection"
 local helper = require "kong.plugins.moesif.helpers"
+local log = require "kong.plugins.moesif.log"
 local string_format = string.format
 local req_get_headers = ngx.req.get_headers
 local cjson = require "cjson"
@@ -84,6 +85,9 @@ function get_governance_rules(premature, hash_key, conf)
     -- Read the Response tag
     local rules_etag = string.match(governance_rules_response, "Tag%s*:%s*(.-)\n")
     governance_rules_etags[hash_key] = rules_etag
+
+    -- Get app config
+    log.get_config_for_rules(conf)
 
     -- Set fetch_governance_rule to true, to be able to fetch governance rule next time
     fetch_governance_rules[hash_key] = true
