@@ -21,6 +21,8 @@ local sampling_rate = 100
 local gc = 0
 local rec_event = 0
 local sent_event = 0
+local gr_helpers = require "kong.plugins.moesif.governance_helpers"
+entity_rules = {}
 
 -- Generates http payload .
 -- @param `method` http method to be used to send data
@@ -105,7 +107,16 @@ function get_config_internal(conf)
     if conf.debug then
       ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
     end
-    return
+    local close_ok, close_err = sock:close()
+    if not close_ok then
+        if conf.debug then
+            ngx_log(ngx_log_ERR,"[moesif] Failed to manually close socket connection ", close_err)
+        end
+    else
+        if conf.debug then
+            ngx_log(ngx.DEBUG,"[moesif] success closing socket connection manually ")
+        end
+    end
    else
     if conf.debug then
       ngx_log(ngx.DEBUG,"[moesif] success keep-alive", ok)
@@ -121,18 +132,31 @@ function get_config_internal(conf)
      conf["ETag"] = config_tag
     end
 
-     -- Check if the governance rule is updated
-     local response_rules_etag = string.match(config_response, "Tag%s*:%s*(.-)\n")
-     if response_rules_etag ~= nil then
+    -- Check if the governance rule is updated
+    local response_rules_etag = string.match(config_response, "Tag%s*:%s*(.-)\n")
+      if response_rules_etag ~= nil then
       conf["rulesETag"] = response_rules_etag
-     end
+    end
+
+    -- Hash key of the config application Id
+    local hash_key = ngx_md5(conf.application_id)
+
+    -- Create empty table for user/company rules
+    if entity_rules[hash_key] == nil then
+      entity_rules[hash_key] = {}
+    end
+
+    -- Get governance rules
+    if (governance_rules_etags[hash_key] == nil or (conf["rulesETag"] ~= governance_rules_etags[hash_key])) then
+      gr_helpers.get_governance_rules(hash_key, conf)
+    end
 
     if (response_body["user_rules"] ~= nil) then
-      conf["user_rules"] = response_body["user_rules"]
+      entity_rules[hash_key]["user_rules"] = response_body["user_rules"]
     end
       
     if (response_body["company_rules"] ~= nil) then
-        conf["company_rules"] = response_body["company_rules"]
+        entity_rules[hash_key]["company_rules"] = response_body["company_rules"]
     end
 
     if (conf["sample_rate"] ~= nil) and (response_body ~= nil) then
@@ -144,22 +168,6 @@ function get_config_internal(conf)
     end
   end
   return config_response
-end
-
-
--- Get App Config function for Governance Rules
--- @param `conf`     Configuration table, holds http endpoint details
-function _M.get_config_for_rules(conf)
-  local ok, err = pcall(get_config_internal, conf)
-  if not ok then
-    if conf.debug then
-      ngx_log(ngx_log_ERR, "[moesif] failed to get config for governance rules ", err)
-    end
-  else 
-    if conf.debug then
-      ngx_log(ngx.DEBUG, "[moesif] get config for governance rules success " , ok)
-    end
-  end
 end
 
 -- Get App Config function

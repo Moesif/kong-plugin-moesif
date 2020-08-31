@@ -28,6 +28,7 @@ build = {
   type = "builtin",
   modules = {
     ["kong.plugins.moesif.handler"] = "kong/plugins/moesif/handler.lua",
+    ["kong.plugins.moesif.governance_helpers"] = "kong/plugins/moesif/governance_helpers.lua",
     ["kong.plugins.moesif.moesif_gov"] = "kong/plugins/moesif/moesif_gov.lua",
     ["kong.plugins.moesif.schema"] = "kong/plugins/moesif/schema.lua",
     ["kong.plugins.moesif.log"] = "kong/plugins/moesif/log.lua",
