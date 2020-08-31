@@ -121,6 +121,7 @@ function _M.serialize(ngx, conf)
   local company_id_entity
   local request_body_entity
   local response_body_entity
+  local blocked_by_entity
   local req_body_transfer_encoding = nil
   local rsp_body_transfer_encoding = nil
   local request_headers = req_get_headers()
@@ -165,26 +166,17 @@ function _M.serialize(ngx, conf)
     session_token_entity = nil
   end
 
-  if request_headers[conf.user_id_header] ~= nil then
-    user_id_entity = tostring(request_headers[conf.user_id_header])
-  elseif response_headers[conf.user_id_header] ~= nil then
-    user_id_entity = tostring(response_headers[conf.user_id_header])
-  elseif request_headers["x-consumer-custom-id"] ~= nil then
-    user_id_entity = tostring(request_headers["x-consumer-custom-id"])
-  elseif request_headers["x-consumer-username"] ~= nil then
-    user_id_entity = tostring(request_headers["x-consumer-username"])
-  elseif request_headers["x-consumer-id"] ~= nil then
-    user_id_entity = tostring(request_headers["x-consumer-id"])
-  else
-    user_id_entity = nil
+  if conf.user_id_entity == nil and response_headers[conf.user_id_header] ~= nil  then 
+    conf.user_id_entity = tostring(response_headers[conf.user_id_header])
+  end 
+
+  if conf.company_id_entity == nil and response_headers[conf.company_id_header] ~= nil then
+    conf.company_id_entity = tostring(response_headers[conf.company_id_header])
   end
 
-  if request_headers[conf.company_id_header] ~= nil then
-    company_id_entity = tostring(request_headers[conf.company_id_header])
-  elseif response_headers[conf.company_id_header] ~= nil then
-    company_id_entity = tostring(response_headers[conf.company_id_header])
-  else 
-    company_id_entity = nil
+  -- Add blocked_by field to the event to determine the rule by which the event was blocked
+  if conf.blocked_by ~= nil then 
+    blocked_by_entity = conf.blocked_by
   end
 
   return {
@@ -207,9 +199,10 @@ function _M.serialize(ngx, conf)
       transfer_encoding = rsp_body_transfer_encoding,
     },
     session_token = session_token_entity,
-    user_id = user_id_entity,
-    company_id = company_id_entity,
-    direction = "Incoming"
+    user_id = conf.user_id_entity,
+    company_id = conf.company_id_entity,
+    direction = "Incoming",
+    blocked_by = blocked_by_entity
   }
 end
 

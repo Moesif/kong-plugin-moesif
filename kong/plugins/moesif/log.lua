@@ -16,10 +16,13 @@ local ngx_md5 = ngx.md5
 local compress = require "kong.plugins.moesif.lib_deflate"
 local helper = require "kong.plugins.moesif.helpers"
 local connect = require "kong.plugins.moesif.connection"
+local socket = require "socket"
 local sampling_rate = 100
 local gc = 0
 local rec_event = 0
 local sent_event = 0
+local gr_helpers = require "kong.plugins.moesif.governance_helpers"
+entity_rules = {}
 
 -- Generates http payload .
 -- @param `method` http method to be used to send data
@@ -58,7 +61,7 @@ local function send_payload(sock, parsed_url, batch_events)
   local access_token = configuration.access_token
   local debug = configuration.debug
 
-  local start_send_time = ngx.now()
+  local start_send_time = socket.gettime()*1000
 
   local ok, err = sock:send(generate_post_payload(parsed_url, access_token, batch_events, application_id, debug) .. "\r\n")
   if not ok then
@@ -67,7 +70,7 @@ local function send_payload(sock, parsed_url, batch_events)
     ngx_log(ngx.DEBUG, "[moesif] Events sent successfully " , ok)
   end
 
-  local end_send_time = ngx.now()
+  local end_send_time = socket.gettime()*1000
   ngx_log(ngx.DEBUG, "[moesif] send payload took time - ".. tostring(end_send_time - start_send_time))
 end
 
@@ -104,7 +107,16 @@ function get_config_internal(conf)
     if conf.debug then
       ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
     end
-    return
+    local close_ok, close_err = sock:close()
+    if not close_ok then
+        if conf.debug then
+            ngx_log(ngx_log_ERR,"[moesif] Failed to manually close socket connection ", close_err)
+        end
+    else
+        if conf.debug then
+            ngx_log(ngx.DEBUG,"[moesif] success closing socket connection manually ")
+        end
+    end
    else
     if conf.debug then
       ngx_log(ngx.DEBUG,"[moesif] success keep-alive", ok)
@@ -120,6 +132,33 @@ function get_config_internal(conf)
      conf["ETag"] = config_tag
     end
 
+    -- Check if the governance rule is updated
+    local response_rules_etag = string.match(config_response, "Tag%s*:%s*(.-)\n")
+      if response_rules_etag ~= nil then
+      conf["rulesETag"] = response_rules_etag
+    end
+
+    -- Hash key of the config application Id
+    local hash_key = ngx_md5(conf.application_id)
+
+    -- Create empty table for user/company rules
+    if entity_rules[hash_key] == nil then
+      entity_rules[hash_key] = {}
+    end
+
+    -- Get governance rules
+    if (governance_rules_etags[hash_key] == nil or (conf["rulesETag"] ~= governance_rules_etags[hash_key])) then
+      gr_helpers.get_governance_rules(hash_key, conf)
+    end
+
+    if (response_body["user_rules"] ~= nil) then
+      entity_rules[hash_key]["user_rules"] = response_body["user_rules"]
+    end
+      
+    if (response_body["company_rules"] ~= nil) then
+        entity_rules[hash_key]["company_rules"] = response_body["company_rules"]
+    end
+
     if (conf["sample_rate"] ~= nil) and (response_body ~= nil) then
       if (response_body["user_sample_rate"] ~= nil) then
         conf["user_sample_rate"] = response_body["user_sample_rate"]
@@ -130,7 +169,6 @@ function get_config_internal(conf)
   end
   return config_response
 end
-
 
 -- Get App Config function
 -- @param `premature`
@@ -154,7 +192,7 @@ function get_config(premature, conf)
   local sok, serr = ngx_timer_at(60, get_config, conf)
   if not sok then
     if conf.debug then
-      ngx.log(ngx.ERR, "[moesif] Error when scheduling the get config : "..serr)
+      ngx_log(ngx.ERR, "[moesif] Error when scheduling the get config : ", serr)
     end
   else
     if conf.debug then
@@ -167,7 +205,7 @@ end
 -- @param `premature`
 local function send_events_batch(premature)
   local prv_events = sent_event
-  local start_time = ngx.now()
+  local start_time = socket.gettime()*1000
   if premature then
     return
   end
@@ -179,9 +217,9 @@ local function send_events_batch(premature)
         ngx_log(ngx.DEBUG, "[moesif] Sending events to Moesif")
         -- Getting the configuration for this particular key
         configuration = config_hashes[key]
-        local start_con_time = ngx.now()
+        local start_con_time = socket.gettime()*1000
         local sock, parsed_url = connect.get_connection("/v1/events/batch", configuration)
-        local end_con_time = ngx.now()
+        local end_con_time = socket.gettime()*1000
         if configuration.debug then
           ngx_log(ngx.DEBUG, "[moesif] get connection took time - ".. tostring(end_con_time - start_con_time))
         end
@@ -192,21 +230,21 @@ local function send_events_batch(premature)
             counter = counter + 1
             table.insert(batch_events, event)
             if (#batch_events == configuration.batch_size) then
-              local start_pay_time = ngx.now()
+              local start_pay_time = socket.gettime()*1000
                if pcall(send_payload, sock, parsed_url, batch_events) then 
                 sent_event = sent_event + #batch_events
                end
-               local end_pay_time = ngx.now()
+               local end_pay_time = socket.gettime()*1000
                if configuration.debug then
                 ngx_log(ngx.DEBUG, "[moesif] send payload with event count - " .. tostring(#batch_events) .. " took time - ".. tostring(end_pay_time - start_pay_time))
                end
                batch_events = {}
             else if(#queue ==0 and #batch_events > 0) then
-                local start_pay1_time = ngx.now()
+                local start_pay1_time = socket.gettime()*1000
                 if pcall(send_payload, sock, parsed_url, batch_events) then 
                   sent_event = sent_event + #batch_events
                 end
-                local end_pay1_time = ngx.now()
+                local end_pay1_time = socket.gettime()*1000
                 if configuration.debug then
                   ngx_log(ngx.DEBUG, "[moesif] send payload with event count - " .. tostring(#batch_events) .. " took time - ".. tostring(end_pay1_time - start_pay1_time))
                 end
@@ -264,7 +302,7 @@ local function send_events_batch(premature)
     gc = 0
   end 
   
-  local endtime = ngx.now()
+  local endtime = socket.gettime()*1000
   ngx_log(ngx.DEBUG, "[moesif] send events batch took time - ".. tostring(endtime - start_time) .. " and sent event delta - " .. tostring(sent_event - prv_events))
 end
 
@@ -324,6 +362,8 @@ function _M.execute(conf, message)
     conf["sample_rate"] = 100
     conf["user_sample_rate"] = {}
     conf["ETag"] = nil
+    conf["user_rules"] = {}
+    conf["company_rules"] = {}
     config_hashes[hash_key] = conf
     queue_hashes[hash_key] = {} 
   end
