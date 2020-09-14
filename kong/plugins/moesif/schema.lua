@@ -17,7 +17,7 @@ return {
     batch_size = {default = 200, type = "number"},
     disable_transaction_id = {default = false, type = "boolean"},
     debug = {default = false, type = "boolean"},
-    enable_skip_gzip_payload_decompression = {default = false, type = "boolean"},
+    enable_skip_gzip_payload_decompression = {default = true, type = "boolean"},
     user_id_header = {default = "", type = "string"},
     company_id_header = {default = "", type = "string"},
   }
