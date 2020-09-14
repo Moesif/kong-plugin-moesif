@@ -72,6 +72,7 @@ function MoesifLogHandler:access(conf)
   local block_req = governance.govern_request(ngx, conf, start_access_phase_time)
   if block_req == nil then 
     if conf.debug then
+      conf["blocked_by"] = nil
       ngx.log(ngx.DEBUG, '[moesif] No need to block incoming request.')
     end
     local end_access_phase_time = socket.gettime()*1000

@@ -8,7 +8,6 @@ local ngx_log_ERR = ngx.ERR
 local ngx_timer_at = ngx.timer.at
 local string_format = string.format
 local ngx_timer_every = ngx.timer.every
-local configuration = nil
 local config_hashes = {}
 local has_events = false
 local ngx_md5 = ngx.md5
@@ -56,13 +55,13 @@ end
 -- @param `parsed_url`  Parsed Url
 -- @param `batch_events`  Events Batch
 local function send_payload(sock, parsed_url, batch_events, conf)
-  local application_id = configuration.application_id
-  local access_token = configuration.access_token
-  local debug = configuration.debug
+  local application_id = conf.application_id
+  local access_token = conf.access_token
+  local debug = conf.debug
 
   local start_send_time = socket.gettime()*1000
 
-  sock:settimeout(conf.timeout)
+  sock:settimeout(conf.send_timeout)
   local ok, err = sock:send(generate_post_payload(parsed_url, access_token, batch_events, application_id, debug) .. "\r\n")
   if not ok then
     ngx_log(ngx_log_ERR, "[moesif] failed to send data to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
@@ -81,7 +80,7 @@ end
 function get_config_internal(conf)
 
   local config_socket = ngx.socket.tcp()
-  config_socket:settimeout(conf.timeout)
+  config_socket:settimeout(conf.connect_timeout)
 
   local sock, parsed_url = connect.get_connection("/v1/config", conf, config_socket)
 
@@ -220,15 +219,16 @@ local function send_events_batch(premature)
   end
 
   local send_events_socket = ngx.socket.tcp()
-  send_events_socket:settimeout(1000)
+  local global_socket_timeout = 1000
+  send_events_socket:settimeout(global_socket_timeout)
 
   local batch_events = {}
   repeat
     for key, queue in pairs(queue_hashes) do
-      if #queue > 0 and ((socket.gettime()*1000 - start_time) <= 1000) then
+      local configuration = config_hashes[key]
+      if #queue > 0 and ((socket.gettime()*1000 - start_time) <= configuration.max_callback_time_spent) then
         ngx_log(ngx.DEBUG, "[moesif] Sending events to Moesif")
         -- Getting the configuration for this particular key
-        configuration = config_hashes[key]
         local start_con_time = socket.gettime()*1000
         local sock, parsed_url = connect.get_connection("/v1/events/batch", configuration, send_events_socket)
         local end_con_time = socket.gettime()*1000
@@ -299,7 +299,11 @@ local function send_events_batch(premature)
         end        
       else
         has_events = false
-        ngx_log(ngx.DEBUG, "[moesif] Taking more than 1 sec, skip sending events now ")
+        if #queue <= 0 then 
+          ngx_log(ngx.DEBUG, "[moesif] Queue is empty, no events to send ")
+        else
+          ngx_log(ngx.DEBUG, "[moesif] Max callback time exceeds, skip sending events now ")
+        end
       end
     end
   until has_events == false

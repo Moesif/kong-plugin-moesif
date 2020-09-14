@@ -107,7 +107,7 @@ function parse_body(headers, body, mask_fields, conf)
   if headers["content-type"] ~= nil and string.find(headers["content-type"], "json") and is_valid_json(body) then 
     body_entity, body_transfer_encoding = process_data(body, mask_fields)
   elseif headers["content-encoding"] ~= nil and type(body) == "string" and string.find(headers["content-encoding"], "gzip") then
-    if not conf.enable_skip_gzip_payload_decompression then 
+    if not conf.disable_gzip_payload_decompression then 
       body_entity, body_transfer_encoding = decompress_body(body, mask_fields)
     else 
       body_entity, body_transfer_encoding = base64_encode_body(body)

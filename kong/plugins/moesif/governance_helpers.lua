@@ -14,7 +14,7 @@ governance_rules_hashes = {}
 function _M.get_governance_rules(hash_key, conf)
 
     local rules_socket = ngx.socket.tcp()
-    rules_socket:settimeout(conf.timeout)
+    rules_socket:settimeout(conf.connect_timeout)
   
     -- Fetch governance rules
     local sock, parsed_url = connect.get_connection("/v1/rules", conf, rules_socket)
