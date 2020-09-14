@@ -5,7 +5,8 @@ local HTTPS = "https"
 -- Read data from the socket
 -- @param `socket`  socket
 -- @return `response` a string with the api call response details
-function _M.read_socket_data(socket)
+function _M.read_socket_data(socket, conf)
+  socket:settimeout(conf.timeout)
   local response, err, partial = socket:receive("*a")
   if (not response) and (err ~= 'timeout')  then
     return nil, err

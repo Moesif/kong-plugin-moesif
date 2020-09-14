@@ -1,8 +1,9 @@
 return {
   fields = {
     api_endpoint = {required = true, type = "url", default = "https://api.moesif.net"},
-    timeout = {default = 10000, type = "number"},
-    keepalive = {default = 10000, type = "number"},
+    timeout = {default = 1000, type = "number"},
+    keepalive = {default = 2000, type = "number"},
+    event_queue_size = {default = 2000, type = "number"},
     api_version = {default = "1.0", type = "string"},
     application_id = {required = true, default ="", type="string"},
     disable_capture_request_body = {default = false, type = "boolean"},
@@ -16,6 +17,7 @@ return {
     batch_size = {default = 200, type = "number"},
     disable_transaction_id = {default = false, type = "boolean"},
     debug = {default = false, type = "boolean"},
+    enable_skip_gzip_payload_decompression = {default = false, type = "boolean"},
     user_id_header = {default = "", type = "string"},
     company_id_header = {default = "", type = "string"},
   }

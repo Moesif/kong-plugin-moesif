@@ -120,7 +120,7 @@ function block_request_based_on_entity_governance_rule(hash_key, conf, rule_name
                 conf["blocked_by"] = rule_id
 
                 local end_access_phase_time = socket.gettime()*1000
-                ngx.log(ngx.DEBUG, "[moesif] access phase took time for blocking request - ".. tostring(end_access_phase_time - start_access_phase_time))
+                ngx.log(ngx.DEBUG, "[moesif] access phase took time for blocking request - ".. tostring(end_access_phase_time - start_access_phase_time).." for pid - ".. ngx.worker.pid())
 
                 return kong.response.exit(gr_status, updated_gr_body, updated_gr_headers)
             else 

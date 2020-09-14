@@ -10,6 +10,8 @@ local req_get_body_data = ngx.req.get_body_data
 local transaction_id = nil
 local socket = require "socket"
 local MoesifLogHandler = BasePlugin:extend()
+queue_hashes = {}
+local ngx_md5 = ngx.md5
 
 -- function to generate uuid
 local random = math.random
@@ -73,7 +75,7 @@ function MoesifLogHandler:access(conf)
       ngx.log(ngx.DEBUG, '[moesif] No need to block incoming request.')
     end
     local end_access_phase_time = socket.gettime()*1000
-    ngx.log(ngx.DEBUG, "[moesif] access phase took time for non-blocking request - ".. tostring(end_access_phase_time - start_access_phase_time))
+    ngx.log(ngx.DEBUG, "[moesif] access phase took time for non-blocking request - ".. tostring(end_access_phase_time - start_access_phase_time).." for pid - ".. ngx.worker.pid())
   end
 end
 
@@ -86,13 +88,28 @@ end
     ngx.ctx.moesif = moesif_data
  end
 
-function MoesifLogHandler:log(conf)
-  MoesifLogHandler.super.log(self)
+function log_event(ngx, conf)
   local start_log_phase_time = socket.gettime()*1000
   local message = serializer.serialize(ngx, conf)
   log.execute(conf, message)
   local end_log_phase_time = socket.gettime()*1000
-  ngx.log(ngx.DEBUG, "[moesif] log phase took time - ".. tostring(end_log_phase_time - start_log_phase_time))
+  ngx.log(ngx.DEBUG, "[moesif] log phase took time - ".. tostring(end_log_phase_time - start_log_phase_time).." for pid - ".. ngx.worker.pid())
+end
+
+function MoesifLogHandler:log(conf)
+  MoesifLogHandler.super.log(self)
+
+  -- Hash key of the config application Id
+  local hash_key = ngx_md5(conf.application_id)
+  if (queue_hashes[hash_key] == nil) or 
+        (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
+    log_event(ngx, conf)
+  else
+    -- log_event(ngx, conf)
+    if conf.debug then
+      ngx.log(ngx.DEBUG, '[moesif] Queue is full, do not log new events ')
+    end
+  end
 end
 
 function MoesifLogHandler:header_filter(conf)

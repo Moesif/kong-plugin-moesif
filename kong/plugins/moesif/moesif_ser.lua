@@ -101,13 +101,17 @@ function mask_body_fields(body_masks_config, deprecated_body_masks_config)
   end
 end
 
-function parse_body(headers, body, mask_fields)
+function parse_body(headers, body, mask_fields, conf)
   local body_entity = nil
   local body_transfer_encoding = nil
   if headers["content-type"] ~= nil and string.find(headers["content-type"], "json") and is_valid_json(body) then 
     body_entity, body_transfer_encoding = process_data(body, mask_fields)
   elseif headers["content-encoding"] ~= nil and type(body) == "string" and string.find(headers["content-encoding"], "gzip") then
-    body_entity, body_transfer_encoding = decompress_body(body, mask_fields)
+    if not conf.enable_skip_gzip_payload_decompression then 
+      body_entity, body_transfer_encoding = decompress_body(body, mask_fields)
+    else 
+      body_entity, body_transfer_encoding = base64_encode_body(body)
+    end
   else
     body_entity, body_transfer_encoding = base64_encode_body(body)
   end
@@ -144,14 +148,14 @@ function _M.serialize(ngx, conf)
     request_body_entity = nil
   else
     local request_body_masks = mask_body_fields(conf.request_body_masks, conf.request_masks)
-    request_body_entity, req_body_transfer_encoding = parse_body(request_headers, moesif_ctx.req_body, request_body_masks)
+    request_body_entity, req_body_transfer_encoding = parse_body(request_headers, moesif_ctx.req_body, request_body_masks, conf)
   end
 
   if moesif_ctx.res_body == nil or conf.disable_capture_response_body then
     response_body_entity = nil
   else
     local response_body_masks = mask_body_fields(conf.response_body_masks, conf.response_masks)
-    response_body_entity, rsp_body_transfer_encoding = parse_body(response_headers, moesif_ctx.res_body, response_body_masks)
+    response_body_entity, rsp_body_transfer_encoding = parse_body(response_headers, moesif_ctx.res_body, response_body_masks, conf)
   end
 
   if ngx.ctx.authenticated_credential ~= nil then
