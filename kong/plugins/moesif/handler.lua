@@ -53,13 +53,16 @@ function MoesifLogHandler:access(conf)
   local req_post_args = {}
   local err = nil
   local mimetype = nil
+  local content_length = headers["content-length"]
 
+  if tonumber(content_length) <= conf.max_body_sime_limit then 
     req_read_body()
     req_body = req_get_body_data()
     local content_type = headers["content-type"]
     if content_type and string_find(content_type:lower(), "application/x-www-form-urlencoded", nil, true) then
       req_post_args, err, mimetype = kong.request.get_body()
     end
+  end
     ngx.ctx.api_version = conf.api_version
 -- keep in memory the bodies for this request
   ngx.ctx.moesif = {
@@ -83,10 +86,15 @@ end
  function MoesifLogHandler:body_filter(conf)
  MoesifLogHandler.super.body_filter(self)
 
-    local chunk = ngx.arg[1]
-    local moesif_data = ngx.ctx.moesif or {res_body = ""} -- minimize the number of calls to ngx.ctx while fallbacking on default value
-    moesif_data.res_body = moesif_data.res_body .. chunk
-    ngx.ctx.moesif = moesif_data
+    local headers = ngx.resp.get_headers()
+    local content_length = headers["content-length"]
+
+    if tonumber(content_length) <= conf.max_body_sime_limit then
+      local chunk = ngx.arg[1]
+      local moesif_data = ngx.ctx.moesif or {res_body = ""} -- minimize the number of calls to ngx.ctx while fallbacking on default value
+      moesif_data.res_body = moesif_data.res_body .. chunk
+      ngx.ctx.moesif = moesif_data
+    end
  end
 
 function log_event(ngx, conf)

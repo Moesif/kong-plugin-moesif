@@ -23,5 +23,6 @@ return {
     user_id_header = {default = "", type = "string"},
     company_id_header = {default = "", type = "string"},
     max_callback_time_spent = {default = 2000, type = "number"},
+    max_body_sime_limit = {default = 100000, type = "number"},
   }
 }
