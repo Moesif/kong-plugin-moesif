@@ -150,7 +150,9 @@ Here's a list of all the parameters which can be used in this plugin's configura
 |api_id||The id of the API which this plugin will target. Note: The API Entity is deprecated in favor of Services since CE 0.13.0 and EE 0.32.|
 |config.application_id	||The Moesif application token provided to you by Moesif.|
 |config.api_endpoint|https://api.moesif.net|URL for the Moesif API.|
-|config.timeout|10000|An optional timeout in milliseconds when sending data to Moesif.|
+|config.timeout (deprecated)|1000|An optional timeout in milliseconds when connecting/sending data to Moesif.|
+|config.connect_timeout|1000|An optional timeout in milliseconds when connecting to Moesif.|
+|config.send_timeout|2000|An optional timeout in milliseconds when sending data to Moesif.|
 |config.keepalive|5000|An optional value in milliseconds that defines for how long an idle connection will live before being closed.|
 |config.api_version|1.0|An optional API Version you want to tag this request with in Moesif.|
 |config.disable_capture_request_body|false|An option to disable logging of request body.|
@@ -162,6 +164,10 @@ Here's a list of all the parameters which can be used in this plugin's configura
 |config.debug|false|An option if set to true, prints internal log messages for debugging integration issues.|
 |config.user_id_header||An optional field name to identify User from a request or response header.|
 |config.company_id_header||An optional field name to identify Company (Account) from a request or response header.|
+|config.disable_gzip_payload_decompression|false|An option if set to true, will send gzip compressed body to Moesif.|
+|config.max_callback_time_spent|2000|An optional maximum callback time to send even to Moesif.|
+|config.max_body_sime_limit|100000|An optional maximum request/response body size in bytes to log in Moesif.|
+|config.event_queue_size|5000|An optional maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skip adding new to event to queue to prevent memory overflow.|
 
 ## Tested Version
 Moesif has validated kong-plugin-moesif against the following Kong version.
