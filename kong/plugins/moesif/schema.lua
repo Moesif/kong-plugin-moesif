@@ -5,7 +5,7 @@ return {
     connect_timeout = {default = 1000, type = "number"},
     send_timeout = {default = 2000, type = "number"},
     keepalive = {default = 5000, type = "number"},
-    event_queue_size = {default = 5000, type = "number"},
+    event_queue_size = {default = 1000, type = "number"},
     api_version = {default = "1.0", type = "string"},
     application_id = {required = true, default ="", type="string"},
     disable_capture_request_body = {default = false, type = "boolean"},

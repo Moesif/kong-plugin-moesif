@@ -17,6 +17,7 @@ local connect = require "kong.plugins.moesif.connection"
 local socket = require "socket"
 local sampling_rate = 100
 local gc = 0
+local health_check = 0
 local rec_event = 0
 local sent_event = 0
 local gr_helpers = require "kong.plugins.moesif.governance_helpers"
@@ -64,7 +65,7 @@ local function send_payload(sock, parsed_url, batch_events, conf)
   sock:settimeout(conf.send_timeout)
   local ok, err = sock:send(generate_post_payload(parsed_url, access_token, batch_events, application_id, debug) .. "\r\n")
   if not ok then
-    ngx_log(ngx_log_ERR, "[moesif] failed to send data to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
+    ngx_log(ngx.DEBUG, "[moesif] failed to send data to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
   else
     ngx_log(ngx.DEBUG, "[moesif] Events sent successfully " , ok)
   end
@@ -221,11 +222,14 @@ local function send_events_batch(premature)
   local send_events_socket = ngx.socket.tcp()
   local global_socket_timeout = 1000
   send_events_socket:settimeout(global_socket_timeout)
-
+  -- Temp hash key for debug 
+  local temp_hash_key
   local batch_events = {}
   repeat
     for key, queue in pairs(queue_hashes) do
       local configuration = config_hashes[key]
+      -- Temp hash key
+      temp_hash_key = key
       if #queue > 0 and ((socket.gettime()*1000 - start_time) <= configuration.max_callback_time_spent) then
         ngx_log(ngx.DEBUG, "[moesif] Sending events to Moesif")
         -- Getting the configuration for this particular key
@@ -314,13 +318,29 @@ local function send_events_batch(premature)
 
   -- Manually garbage collect every alternate cycle
   gc = gc + 1 
-  if gc == 16 then 
+  if gc == 8 then 
     collectgarbage()
     gc = 0
-  end 
+  end
+  
+  -- Periodic health check
+  health_check = health_check + 1
+  if health_check == 150 then
+    if rec_event ~= 0 then
+      local event_perc = sent_event / rec_event
+      ngx_log(ngx.DEBUG, "[moesif] heartbeat - "..tostring(event_perc).." in pid - ".. ngx.worker.pid())
+    end
+    health_check = 0
+  end
   
   local endtime = socket.gettime()*1000
-  ngx_log(ngx.DEBUG, "[moesif] send events batch took time - ".. tostring(endtime - start_time) .. " and sent event delta - " .. tostring(sent_event - prv_events).." for pid - ".. ngx.worker.pid())
+  
+  -- Event queue size
+  local length = 0
+  if queue_hashes[temp_hash_key] ~= nil then 
+    length = #queue_hashes[temp_hash_key]
+  end
+  ngx_log(ngx.DEBUG, "[moesif] send events batch took time - ".. tostring(endtime - start_time) .. " and sent event delta - " .. tostring(sent_event - prv_events).." for pid - ".. ngx.worker.pid().. " with queue size - ".. tostring(length))
 end
 
 -- Log to a Http end point.
