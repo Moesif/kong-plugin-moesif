@@ -166,7 +166,7 @@ Here's a list of all the parameters which can be used in this plugin's configura
 |config.company_id_header||An optional field name to identify Company (Account) from a request or response header.|
 |config.disable_gzip_payload_decompression|false|An option if set to true, will send gzip compressed body to Moesif.|
 |config.max_callback_time_spent|2000|An optional maximum callback time to send even to Moesif.|
-|config.max_body_sime_limit|100000|An optional maximum request/response body size in bytes to log in Moesif.|
+|config.max_body_size_limit|100000|An optional maximum request/response body size in bytes to log in Moesif.|
 |config.event_queue_size|5000|An optional maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skip adding new to event to queue to prevent memory overflow.|
 
 ## Tested Version
