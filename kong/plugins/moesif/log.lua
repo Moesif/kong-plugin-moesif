@@ -328,7 +328,7 @@ local function send_events_batch(premature)
   if health_check == 150 then
     if rec_event ~= 0 then
       local event_perc = sent_event / rec_event
-      ngx_log(ngx.DEBUG, "[moesif] heartbeat - "..tostring(event_perc).." in pid - ".. ngx.worker.pid())
+      ngx_log(ngx.INFO, "[moesif] heartbeat - "..tostring(event_perc).." in pid - ".. ngx.worker.pid())
     end
     health_check = 0
   end
