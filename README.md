@@ -1,13 +1,12 @@
-# Moesif kong plugin
+# Moesif Kong Plugin
 
-The [Moesif Kong plugin](https://docs.konghq.com/hub/moesif/kong-plugin-moesif/) integrates [Kong API Gateway](https://getkong.org)
-with [Moesif API Analytics](https://www.moesif.com).
+The [Moesif Kong plugin](https://docs.konghq.com/hub/moesif/kong-plugin-moesif/) captures API traffic from [Kong API Gateway](https://getkong.org)
+and logs it to [Moesif API Analytics](https://www.moesif.com). This plugin leverages an asynchronous design and doesn’t add any latency to your API calls.
 
-- Kong is an open source API gateway and management layer.
+- Kong is an open-source API gateway and middleware layer.
 - Moesif is an API analytics and monitoring service.
 
-When enabled, this plugin will capture API requests and responses and log to Moesif API Insights for easy inspecting and real-time debugging of your API traffic.
-Support for REST, GraphQL, Ethereum Web3, JSON-RPC, SOAP, & more
+This plugin supports automatic analysis of REST, GraphQL, and other APIs.
 
 [Source Code on GitHub](https://github.com/Moesif/kong-plugin-moesif)
 
@@ -170,11 +169,8 @@ Here's a list of all the parameters which can be used in this plugin's configura
 |config.event_queue_size|5000|An optional maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skip adding new to event to queue to prevent memory overflow.|
 
 ## Tested Version
-Moesif has validated kong-plugin-moesif against the following Kong version.
 
-|   Kong  |
-| ------- |
-|  1.4.0  |
+For tested versions, [see this page](https://docs.konghq.com/hub/moesif/kong-plugin-moesif/) on Kong docs. 
 
 ## Other integrations
 
