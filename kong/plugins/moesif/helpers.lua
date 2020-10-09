@@ -34,4 +34,22 @@ function _M.parse_url(host_url)
   return parsed_url
 end
 
+-- Fetch entity id from the event
+-- @param `message`      Message to be logged
+-- @param `entity_name`  Entity name to be fetch user_id, company_id etc
+-- @return `entity_id`   Return the fetched entity id if found
+function _M.fetch_entity_id(message, entity_name)
+  if message[entity_name] ~= nil then 
+    return message[entity_name]
+  end
+  return nil
+end
+
+-- Prepare request URI
+-- @param `ngx`  Nginx object
+-- @return `url` Request URI
+function _M.prepare_request_uri(ngx)
+  return ngx.var.scheme .. "://" .. ngx.var.host .. ":" .. ngx.var.server_port .. ngx.var.request_uri
+end
+
 return _M

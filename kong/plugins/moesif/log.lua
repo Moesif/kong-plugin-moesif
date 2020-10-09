@@ -14,6 +14,7 @@ local ngx_md5 = ngx.md5
 local compress = require "kong.plugins.moesif.lib_deflate"
 local helper = require "kong.plugins.moesif.helpers"
 local connect = require "kong.plugins.moesif.connection"
+local regex_config_helper = require "kong.plugins.moesif.regex_config_helpers"
 local socket = require "socket"
 local sampling_rate = 100
 local gc = 0
@@ -135,7 +136,7 @@ function get_config_internal(conf)
       local config_tag = string.match(config_response, "ETag%s*:%s*(.-)\n")
 
       if config_tag ~= nil then
-      conf["ETag"] = config_tag
+        conf["ETag"] = config_tag
       end
 
       -- Check if the governance rule is updated
@@ -168,7 +169,17 @@ function get_config_internal(conf)
       if (conf["sample_rate"] ~= nil) and (response_body ~= nil) then
         if (response_body["user_sample_rate"] ~= nil) then
           conf["user_sample_rate"] = response_body["user_sample_rate"]
-        else 
+        end
+        
+        if (response_body["company_sample_rate"] ~= nil) then
+          conf["company_sample_rate"] = response_body["company_sample_rate"]
+        end
+
+        if (response_body["regex_config"] ~= nil) then
+          conf["regex_config"] = response_body["regex_config"]
+        end
+        
+        if (response_body["sample_rate"] ~= nil) then
           conf["sample_rate"] = response_body["sample_rate"]
         end
       end
@@ -357,6 +368,16 @@ local function log(conf, message, hash_key)
 
   if type(conf.user_sample_rate) == "table" and next(conf.user_sample_rate) ~= nil and message["user_id"] ~= nil and conf.user_sample_rate[message["user_id"]]~= nil then 
     sampling_rate = conf.user_sample_rate[message["user_id"]]
+  elseif type(conf.company_sample_rate) == "table" and next(conf.company_sample_rate) ~= nil and message["company_id"] ~= nil and conf.company_sample_rate[message["company_id"]]~= nil then 
+    sampling_rate = conf.company_sample_rate[message["company_id"]]
+  elseif type(conf.regex_config) == "table" and next(conf.regex_config) ~= nil then
+    local config_mapping = regex_config_helper.prepare_config_mapping(message)
+    local ok, sample_rate, block_rule = pcall(regex_config_helper.fetch_sample_rate_block_request_on_regex_match, conf.regex_config, config_mapping)
+    if not ok then
+      sampling_rate = conf.sample_rate
+    else 
+      sampling_rate = sample_rate  
+    end
   else 
     sampling_rate = conf.sample_rate
   end
@@ -379,11 +400,10 @@ function _M.execute(conf, message)
   -- Hash key of the config application Id
   local hash_key = ngx_md5(conf.application_id)
 
-  if message["user_id"] ~= nil then 
-    conf["user_id"] = message["user_id"]
-  else 
-    conf["user_id"] = nil
-  end
+  -- User Id
+  conf["user_id"] = helper.fetch_entity_id(message, "user_id")
+  -- Company Id
+  conf["company_id"] = helper.fetch_entity_id(message, "company_id")
 
   if config_hashes[hash_key] == nil then
     local ok, err = ngx_timer_at(0, get_config, conf)
@@ -398,6 +418,8 @@ function _M.execute(conf, message)
     end
     conf["sample_rate"] = 100
     conf["user_sample_rate"] = {}
+    conf["company_sample_rate"] = {}
+    conf["regex_config"] = {}
     conf["ETag"] = nil
     conf["user_rules"] = {}
     conf["company_rules"] = {}

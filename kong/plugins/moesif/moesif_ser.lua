@@ -11,6 +11,7 @@ local ngx_log_ERR = ngx.ERR
 local client_ip = require "kong.plugins.moesif.client_ip"
 local zzlib = require "kong.plugins.moesif.zzlib"
 local base64 = require "kong.plugins.moesif.base64"
+local helper = require "kong.plugins.moesif.helpers"
 
 function mask_body(body, masks)
   if masks == nil then return body end
@@ -185,7 +186,7 @@ function _M.serialize(ngx, conf)
 
   return {
     request = {
-      uri =  ngx.var.scheme .. "://" .. ngx.var.host .. ":" .. ngx.var.server_port .. ngx.var.request_uri,
+      uri =  helper.prepare_request_uri(ngx),
       headers = request_headers,
       body = request_body_entity,
       verb = req_get_method(),
