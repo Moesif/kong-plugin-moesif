@@ -3,24 +3,10 @@ local _M = {}
 -- Function to perform the regex matching with event value and condition value
 -- @param  `event_value`     Value associated with event (request)
 -- @param  `condition_value` Value associated with the regex config condition
--- @param  `regex_matched`   Boolean flag with regex matched from previous regex config condition
 -- @return `regex_matched`   Boolean flag to determine if the regex match was successful 
-local function regex_match (event_value, condition_value, regex_matched)
+local function regex_match (event_value, condition_value)
     -- Perform regex match between event value and regex config condition value
-    if string.match(event_value, condition_value) then 
-        if regex_matched == nil then 
-            regex_matched = true
-        else
-            regex_matched = (regex_matched and true) 
-        end 
-    else
-        if regex_matched == nil then 
-            regex_matched = false
-        else
-            regex_matched = (regex_matched and false)
-        end 
-    end
-    return regex_matched
+    return string.match(event_value, condition_value)
 end
 
 -- Function to fetch the sample rate and determine if request needs to be block or not
@@ -41,28 +27,8 @@ function _M.fetch_sample_rate_block_request_on_regex_match(gr_regex_configs, req
 
         -- Iterate through the regex rule conditions and map the path and value
         for _, condition in pairs(conditions) do
-            -- Check if the path does not exists already in the table (when multiple path like request.route exist in the conditions) 
-            if condition_table[condition["path"]] ~= nil then 
-                -- Create a table to hold the existing values
-                local append_value = {}
-                -- Check if the path if of type table
-                if type(condition_table[condition["path"]]) == "table" then
-                    -- Iterate through the path values and append value 
-                    for _, value in ipairs(condition_table[condition["path"]]) do 
-                        table.insert(append_value, value)
-                    end
-                else 
-                    -- Append existing value to the table
-                    table.insert(append_value, condition_table[condition["path"]])
-                end
-                -- Append new value to the existing values
-                table.insert(append_value, condition["value"])
-                -- Add condition path -> values (new and existing value) to the condition table
-                condition_table[condition["path"]] = append_value
-            else
-                -- Add condition path -> value to the condition table
-                condition_table[condition["path"]] = condition["value"]
-            end
+            -- Add condition path -> value to the condition table
+            condition_table[condition["path"]] = condition["value"]
         end
 
         -- Iterate through conditions table and perform `and` operation between each conditions
@@ -71,25 +37,22 @@ function _M.fetch_sample_rate_block_request_on_regex_match(gr_regex_configs, req
             if request_config_mapping[path] ~= nil then 
                 -- Fetch the value of the path in request config mapping
                 local event_data = request_config_mapping[path]
-                -- Check if the condition values is of type table and not nil
-                if type(values) == 'table' and next(values) ~= nil then 
-                    -- Iterate through all the values and perform regex matching with event value
-                    for _, value in pairs(values) do 
-                        regex_matched = regex_match(event_data, value, regex_matched)
-                    end 
-                else 
-                    -- Perform regex matching with event value
-                    regex_matched = regex_match(event_data, values, regex_matched)
-                end         
+                -- Perform regex matching with event value
+                regex_matched = regex_match(event_data, values)     
             else 
-                -- Path does not exists, so regex condition not matched, performing `and` operation with previous condition
-                regex_matched = (regex_matched and false)
+                -- Path does not exists in request config mapping, so no need to match regex condition rule
+                regex_matched = false
             end
+            
+            -- If one of the rule does not match, skip the condition and avoid matching other rules for the same condition
+            if not regex_matched then 
+                break
+            end
+        end
 
-            -- If regex conditions matched, return sample rate and block request (true)
-            if regex_matched then 
-                return sample_rate, true
-            end
+        -- If regex conditions matched, return sample rate and block request (true)
+        if regex_matched then 
+            return sample_rate, true
         end
     end
     -- If regex conditions are not matched, return default sample rate (nil) and do not block request (false)
