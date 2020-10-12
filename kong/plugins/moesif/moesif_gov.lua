@@ -1,15 +1,12 @@
 local _M = {}
 local ngx_timer_at = ngx.timer.at
-local req_get_method = ngx.req.get_method
 local ngx_log = ngx.log
 local ngx_log_ERR = ngx.ERR
 local ngx_md5 = ngx.md5
 local connect = require "kong.plugins.moesif.connection"
 local helper = require "kong.plugins.moesif.helpers"
-local regex_config_helper = require "kong.plugins.moesif.regex_config_helpers"
 local log = require "kong.plugins.moesif.log"
 local gr_helpers = require "kong.plugins.moesif.governance_helpers"
-local client_ip = require "kong.plugins.moesif.client_ip"
 local string_format = string.format
 local req_get_headers = ngx.req.get_headers
 local cjson = require "cjson"
@@ -32,7 +29,7 @@ end
 -- Replace body value in the response body for the short-circuited request
 -- @param `body_table`    Response Body
 -- @param `rule_values`   Governance Rule values
-function transform_values(body_table, rule_values)
+function transformValues(body_table, rule_values)
     if type(body_table) == "string" then
         return body_table:gsub("{{%d+}}", rule_values)
     elseif type(body_table) == "table" and next(body_table) ~= nil then 
@@ -43,7 +40,7 @@ function transform_values(body_table, rule_values)
             if type(headerValue) == "string" then 
                 updated_body_table[key] = headerValue:gsub("{{%d+}}", rule_values)
             elseif type(headerValue) == "table" and next(headerValue) ~= nil then 
-                local updatedBody = transform_values(headerValue, rule_values)
+                local updatedBody = transformValues(headerValue, rule_values)
                 updated_body_table[key] = updatedBody
             end
         end
@@ -51,70 +48,12 @@ function transform_values(body_table, rule_values)
     end
 end
 
--- Fetch response status, headers, and body from the governance rule
--- @param `governance_rule`          Governance Rule
--- @return `status, headers, body`   Response status, headers, body
-function fetch_governance_rule_response_details(governance_rule)
-     -- Response status
-     local status = governance_rule["response"]["status"]
-     -- Response headers
-     local headers = governance_rule["response"]["headers"]
-     -- Response body
-     local body
-     if governance_rule["response"]["body"] ~= nil then
-         body = governance_rule["response"]["body"]
-     end
-    return status, headers, body
-end
-
--- Check if need to block request based on the governance rule regex config associated with the request
--- @param `hash_key`                Hash key of the config application Id
--- @param `rule_id`                 Governance rule id
--- @param `conf`                    Configuration table, holds http endpoint details
--- @param `start_access_phase_time` Access phase start time
-function block_request_based_on_governance_rule_regex_config(hash_key, rule_id, conf, start_access_phase_time)
-    -- Fetch the governance rule
-    local governance_rule = regex_governance_rules_hashes[hash_key][rule_id]
-
-    -- Check if block is set to true
-    local is_block = governance_rule["block"]
-    if is_block then 
-        -- Check if response, response status and headers are not nil
-        if governance_rule["response"] ~= nil and governance_rule["response"]["status"] ~= nil 
-        and governance_rule["response"]["headers"] ~= nil then
-            
-            -- Response status, headers, body
-            local gr_status, gr_headers, gr_body = fetch_governance_rule_response_details(governance_rule)
-
-            -- Add blocked_by field to the event to determine the rule by which the event was blocked
-            conf["blocked_by"] = rule_id
-
-            local end_access_phase_time = socket.gettime()*1000
-            ngx.log(ngx.DEBUG, "[moesif] access phase took time for blocking request - ".. tostring(end_access_phase_time - start_access_phase_time).." for pid - ".. ngx.worker.pid())
-
-            return kong.response.exit(gr_status, gr_body, gr_headers)
-        else 
-            if conf.debug then
-                ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request as response is not set for the governance rule with regex config")
-            end
-            return nil
-        end
-    else
-        if conf.debug then
-            ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request as block is set to false for the governance rule with regex config")
-        end
-        return nil
-    end
-end
-
 -- Check if need to block request based on the governance rule of the entity associated with the request
--- @param `hash_key`                Hash key of the config application Id
--- @param `conf`                    Configuration table, holds http endpoint details
--- @param `rule_name`               User or Company 
--- @param `entity_id`               User or Company Id associated with the reqeust
--- @param `start_access_phase_time` Access phase start time
--- @param `request_config_mapping`  Request config mapping associated with the request
-function block_request_based_on_entity_governance_rule(hash_key, conf, rule_name, entity_id, start_access_phase_time, request_config_mapping)
+-- @param `hash_key`    Hash key of the config application Id
+-- @param `conf`        Configuration table, holds http endpoint details
+-- @param `rule_name`   User or Company 
+-- @param `entity_id`   User or Company Id associated with the reqeust
+function block_request_based_on_entity_governance_rule(hash_key, conf, rule_name, entity_id, start_access_phase_time)
     if governance_rules_hashes[hash_key] ~= nil and type(governance_rules_hashes[hash_key]) == "table" and next(governance_rules_hashes[hash_key]) ~= nil 
         and entity_rules[hash_key] ~= nil and type(entity_rules[hash_key]) == "table" and next(entity_rules[hash_key]) ~= nil and 
         entity_rules[hash_key][rule_name] ~= nil and entity_rules[hash_key][rule_name][entity_id] ~= nil then
@@ -129,21 +68,29 @@ function block_request_based_on_entity_governance_rule(hash_key, conf, rule_name
         if entity_rule ~= nil then 
             local rule_id = entity_rule["rules"]
             local governance_rule = governance_rules[rule_id]
+            --local is_block = governance_rule["block"]
+            -- is_block and 
 
             -- Check if response, response status and headers are not nil
             if governance_rule["response"] ~= nil and governance_rule["response"]["status"] ~= nil 
-                and governance_rule["response"]["headers"] ~= nil then
+                and governance_rule["response"]["headers"] ~=nil then
                 
-                -- Response status, headers, body
-                local gr_status, gr_headers, gr_body = fetch_governance_rule_response_details(governance_rule)
+                -- Response status
+                local gr_status = governance_rule["response"]["status"]
+                -- Response headers
+                local gr_headers = governance_rule["response"]["headers"]
                 
-                -- Updated governance rule headers
                 local updated_gr_headers = {}
                 if gr_headers ~= nil then 
                     for k,v in pairs(gr_headers) do updated_gr_headers[k]=v end
                 end
 
-                -- Updated governance rule body
+                -- Response body
+                local gr_body
+                if governance_rule["response"]["body"] ~= nil then
+                    gr_body =governance_rule["response"]["body"]
+                end
+
                 local updated_gr_body
                 if type(gr_body) == "string" then
                     updated_gr_body = gr_body
@@ -167,27 +114,8 @@ function block_request_based_on_entity_governance_rule(hash_key, conf, rule_name
                         updated_gr_headers[headerName] = headerValue:gsub("{{%d+}}", updated_rule_values)
                     end
                     -- Replace body
-                    updated_gr_body = transform_values(updated_gr_body, updated_rule_values)
+                    updated_gr_body = transformValues(updated_gr_body, updated_rule_values)
                 end 
-
-                -- Regex Config
-                local gr_regex_configs = {}
-                if governance_rule["regex_config"] ~= nil then
-                    gr_regex_configs = governance_rule["regex_config"]
-                end
-
-                -- Check if regex configs is table and not empty
-                if gr_regex_configs ~= nil and type(gr_regex_configs) == "table" and next(gr_regex_configs) ~= nil then 
-                    -- Check if the request config mapping matches governance rule regex condtions
-                    local gr_match_id = regex_config_helper.fetch_governance_rule_id(gr_regex_configs, request_config_mapping, rule_id)
-                    -- If the regex conditions does not match, skip blocking the request
-                    if gr_match_id == nil then 
-                        if conf.debug then
-                            ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request as governance rule regex conditions does not match")
-                        end
-                        return nil
-                    end 
-                end
                 -- Add blocked_by field to the event to determine the rule by which the event was blocked
                 conf["blocked_by"] = rule_id
 
@@ -221,11 +149,7 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
     local hash_key = ngx_md5(conf.application_id)
     local user_id_entity
     local company_id_entity
-    local request_uri = helper.prepare_request_uri(ngx)
-    local request_verb = req_get_method()
     local request_headers = req_get_headers()
-    local request_ip_address = client_ip.get_client_ip(request_headers)
-    local request_config_mapping = regex_config_helper.prepare_config_mapping(regex_config_helper.prepare_request_config_mapping(request_verb, request_uri, request_ip_address))
 
     -- Fetch the user details
     if request_headers[conf.user_id_header] ~= nil then
@@ -254,7 +178,7 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
     if governance_rules_hashes[hash_key] ~= nil and type(governance_rules_hashes[hash_key]) == "table" and next(governance_rules_hashes[hash_key]) ~= nil then
         -- Check if need to block request based on user governance rule
         if user_id_entity ~= nil then 
-            local sc_user_req = block_request_based_on_entity_governance_rule(hash_key, conf, "user_rules", user_id_entity, start_access_phase_time, request_config_mapping)
+            local sc_user_req = block_request_based_on_entity_governance_rule(hash_key, conf, "user_rules", user_id_entity, start_access_phase_time)
             if sc_user_req == nil then 
                 if conf.debug then
                     ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request based on the user Id - " .. user_id_entity)
@@ -263,25 +187,10 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
         end
         -- Check if need to block request based on company governance rule
         if company_id_entity ~= nil then 
-            local sc_company_req = block_request_based_on_entity_governance_rule(hash_key, conf, "company_rules", company_id_entity, start_access_phase_time, request_config_mapping)
+            local sc_company_req = block_request_based_on_entity_governance_rule(hash_key, conf, "company_rules", company_id_entity, start_access_phase_time)
             if sc_company_req == nil then 
                 if conf.debug then
                     ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request based on the company Id - " .. company_id_entity)
-                end
-            end
-        end
-    end
-
-    -- Check if need to block request based on the governance rule with regex config
-    if regex_governance_rules_hashes[hash_key] ~= nil and type(regex_governance_rules_hashes[hash_key]) == "table" and next(regex_governance_rules_hashes[hash_key]) ~= nil then
-        -- Check if the governance rule regex config matches request config mapping and fetch governance rule id
-        local gr_id = regex_config_helper.fetch_governance_rule_id_on_regex_match(regex_governance_rules_hashes[hash_key], request_config_mapping)
-        -- Check if need to block request based on governance rule regex config
-        if gr_id ~= nil then 
-            local sc_regex_req = block_request_based_on_governance_rule_regex_config(hash_key, gr_id, conf, start_access_phase_time)
-            if sc_regex_req == nil then
-                if conf.debug then
-                    ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request based on the governance rule regex config")
                 end
             end
         end
