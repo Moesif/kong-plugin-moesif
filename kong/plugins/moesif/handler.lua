@@ -59,7 +59,7 @@ function MoesifLogHandler:access(conf)
   if (queue_hashes[hash_key] == nil) or 
         (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
 
-    if (content_length ~= nil) and (tonumber(content_length) <= conf.max_body_size_limit) then 
+    if (content_length == nil) or (tonumber(content_length) <= conf.max_body_size_limit) then 
       req_read_body()
       req_body = req_get_body_data()
       local content_type = headers["content-type"]
@@ -99,7 +99,7 @@ end
     if (queue_hashes[hash_key] == nil) or 
           (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
 
-      if (content_length ~= nil) and (tonumber(content_length) <= conf.max_body_size_limit) then
+      if (content_length == nil) or (tonumber(content_length) <= conf.max_body_size_limit) then
         local chunk = ngx.arg[1]
         local moesif_data = ngx.ctx.moesif or {res_body = ""} -- minimize the number of calls to ngx.ctx while fallbacking on default value
         moesif_data.res_body = moesif_data.res_body .. chunk
@@ -146,7 +146,7 @@ function MoesifLogHandler:init_worker()
 end
 
 MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "0.2.19"
+MoesifLogHandler.VERSION = "0.2.20"
 
 -- Plugin version
 plugin_version = MoesifLogHandler.VERSION
