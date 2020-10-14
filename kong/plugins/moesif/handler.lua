@@ -59,7 +59,7 @@ function MoesifLogHandler:access(conf)
   if (queue_hashes[hash_key] == nil) or 
         (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
 
-    if (content_length == nil) or (tonumber(content_length) <= conf.max_body_size_limit) then 
+    if (content_length == nil and string.len(req_get_body_data()) <= conf.max_body_size_limit) or (content_length ~= nil and tonumber(content_length) <= conf.max_body_size_limit) then 
       req_read_body()
       req_body = req_get_body_data()
       local content_type = headers["content-type"]
@@ -108,8 +108,19 @@ end
     end
  end
 
+ -- Function to ensure response body size is less than conf.max_body_size_limit
+function ensure_body_size(ngx, conf)
+  local moesif_ctx = ngx.ctx.moesif or {}
+
+  if moesif_ctx.res_body ~= nil and (string.len(moesif_ctx.res_body) >= conf.max_body_size_limit) then
+    moesif_ctx.res_body = nil
+  end
+end
+
 function log_event(ngx, conf)
   local start_log_phase_time = socket.gettime()*1000
+  -- Ensure that the response body size is less than conf.max_body_size_limit incase content-lenght header is not set
+  ensure_body_size(ngx, conf)
   local message = serializer.serialize(ngx, conf)
   log.execute(conf, message)
   local end_log_phase_time = socket.gettime()*1000
@@ -146,7 +157,7 @@ function MoesifLogHandler:init_worker()
 end
 
 MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "0.2.20"
+MoesifLogHandler.VERSION = "0.2.21"
 
 -- Plugin version
 plugin_version = MoesifLogHandler.VERSION
