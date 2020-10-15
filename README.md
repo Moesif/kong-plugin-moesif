@@ -137,7 +137,7 @@ curl -X POST http://kong:8001/apis/{api}/plugins \
 
 ## Parameters
 
-Here's a list of all the parameters which can be used in this plugin's configuration:
+The Moesif Kong Plugin has a variety of options for things like data scrubbing and tweaking performance. 
 
 |Parameter|Default|Description|
 |---|---|---|
@@ -149,24 +149,38 @@ Here's a list of all the parameters which can be used in this plugin's configura
 |api_id||The id of the API which this plugin will target. Note: The API Entity is deprecated in favor of Services since CE 0.13.0 and EE 0.32.|
 |config.application_id	||The Moesif application token provided to you by Moesif.|
 |config.api_endpoint|https://api.moesif.net|URL for the Moesif API.|
-|config.timeout (deprecated)|1000|An optional timeout in milliseconds when connecting/sending data to Moesif.|
-|config.connect_timeout|1000|An optional timeout in milliseconds when connecting to Moesif.|
-|config.send_timeout|2000|An optional timeout in milliseconds when sending data to Moesif.|
-|config.keepalive|5000|An optional value in milliseconds that defines for how long an idle connection will live before being closed.|
-|config.api_version|1.0|An optional API Version you want to tag this request with in Moesif.|
-|config.disable_capture_request_body|false|An option to disable logging of request body.|
-|config.disable_capture_response_body|false|An option to disable logging of response body.|
-|config.request_header_masks|{}|An option to mask a specific request header field.|
-|config.request_body_masks|{}|An option to mask a specific request body field.|
-|config.response_header_masks|{}|An option to mask a specific response header field.|
-|config.response_body_masks|{}|An option to mask a specific response body field.|
-|config.debug|false|An option if set to true, prints internal log messages for debugging integration issues.|
-|config.user_id_header||An optional field name to identify User from a request or response header.|
-|config.company_id_header||An optional field name to identify Company (Account) from a request or response header.|
-|config.disable_gzip_payload_decompression|false|An option if set to true, will send gzip compressed body to Moesif.|
-|config.max_callback_time_spent|2000|An optional maximum callback time to send even to Moesif.|
-|config.max_body_size_limit|100000|An optional maximum request/response body size in bytes to log in Moesif.|
-|config.event_queue_size|5000|An optional maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skip adding new to event to queue to prevent memory overflow.|
+|config.timeout (deprecated)|1000|Timeout in milliseconds when connecting/sending data to Moesif.|
+|config.connect_timeout|1000|Timeout in milliseconds when connecting to Moesif.|
+|config.send_timeout|2000|Timeout in milliseconds when sending data to Moesif.|
+|config.keepalive|5000|Value in milliseconds that defines for how long an idle connection will live before being closed.|
+|config.api_version|1.0|API Version you want to tag this request with in Moesif.|
+|config.disable_capture_request_body|false|Disable logging of request body.|
+|config.disable_capture_response_body|false|Disable logging of response body.|
+|config.request_header_masks|{}|An array of request header fields to mask.|
+|config.request_body_masks|{}|An array of request body fields to mask.|
+|config.response_header_masks|{}|An array of response header fields to mask.|
+|config.response_body_masks|{}|An array of response body fields to mask.|
+|config.batch_size|200|Maximum batch size when sending to Moesif.|
+|config.user_id_header|X-Consumer-Custom-Id|Request or response header to use to identify the User in Moesif.|
+|config.company_id_header||Request or response header to use to identify the Company (Account) in Moesif.|
+|config.disable_gzip_payload_decompression|false|If set to true, will disable decompressing body in Kong.|
+|config.max_callback_time_spent|2000|Maximum callback time to send even to Moesif.|
+|config.max_body_size_limit|100000|Maximum request/response body size in bytes to log in Moesif.|
+|config.event_queue_size|5000|Maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skips adding new to event to queue to prevent memory overflow.|
+|config.debug|false|If set to true, prints internal log messages for debugging integration issues.|
+
+
+## Troubleshooting
+If you want to access debug logs, or to send to Moesif support, you can enable debug logs via the following:
+
+```
+curl -X POST http://kong:8001/apis/{api}/plugins \
+    --data "name=moesif"  \
+    --data "config.application_id=MY_MOESIF_APPLICATION_ID"
+    --data "config.debug=true"
+```
+
+You should also set log_level to debug in /etc/kong/kong.conf. 
 
 ## Tested Version
 
