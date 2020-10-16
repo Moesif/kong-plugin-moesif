@@ -410,8 +410,8 @@ end
 
 -- Schedule Events batch job
 function _M.start_background_thread()
-  ngx.log(ngx.DEBUG, "[moesif] Scheduling Events batch job every 2 seconds")
-  local ok, err = ngx_timer_every(2, send_events_batch)
+  ngx.log(ngx.DEBUG, "[moesif] Scheduling Events batch job every 1 seconds")
+  local ok, err = ngx_timer_every(1, send_events_batch)
   if not ok then
       ngx.log(ngx.ERR, "[moesif] Error when scheduling the job: "..err)
   end
