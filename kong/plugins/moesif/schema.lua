@@ -22,7 +22,7 @@ return {
     disable_gzip_payload_decompression = {default = false, type = "boolean"},
     user_id_header = {default = "", type = "string"},
     company_id_header = {default = "", type = "string"},
-    max_callback_time_spent = {default = 2000, type = "number"},
+    max_callback_time_spent = {default = 1000, type = "number"},
     max_body_size_limit = {default = 500000, type = "number"},
   }
 }
