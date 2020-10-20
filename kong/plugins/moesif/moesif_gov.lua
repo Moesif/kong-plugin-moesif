@@ -2,7 +2,6 @@ local _M = {}
 local ngx_timer_at = ngx.timer.at
 local ngx_log = ngx.log
 local ngx_log_ERR = ngx.ERR
-local ngx_md5 = ngx.md5
 local connect = require "kong.plugins.moesif.connection"
 local helper = require "kong.plugins.moesif.helpers"
 local log = require "kong.plugins.moesif.log"
@@ -146,7 +145,7 @@ end
 function _M.govern_request(ngx, conf, start_access_phase_time)
 
     -- Hash key of the config application Id
-    local hash_key = ngx_md5(conf.application_id)
+    local hash_key = string.sub(conf.application_id, -10)
     local user_id_entity
     local company_id_entity
     local request_headers = req_get_headers()

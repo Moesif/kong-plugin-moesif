@@ -10,7 +10,6 @@ local string_format = string.format
 local ngx_timer_every = ngx.timer.every
 local config_hashes = {}
 local has_events = false
-local ngx_md5 = ngx.md5
 local compress = require "kong.plugins.moesif.lib_deflate"
 local helper = require "kong.plugins.moesif.helpers"
 local connect = require "kong.plugins.moesif.connection"
@@ -20,6 +19,9 @@ local gc = 0
 local health_check = 0
 local rec_event = 0
 local sent_event = 0
+local sent_success = 0
+local sent_failure = 0
+local timer_wakeup_seconds = 1.5
 local gr_helpers = require "kong.plugins.moesif.governance_helpers"
 entity_rules = {}
 
@@ -65,8 +67,10 @@ local function send_payload(sock, parsed_url, batch_events, conf)
   sock:settimeout(conf.send_timeout)
   local ok, err = sock:send(generate_post_payload(parsed_url, access_token, batch_events, application_id, debug) .. "\r\n")
   if not ok then
+    sent_failure = sent_failure + #batch_events
     ngx_log(ngx.DEBUG, "[moesif] failed to send data to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
   else
+    sent_success = sent_success + #batch_events
     ngx_log(ngx.DEBUG, "[moesif] Events sent successfully " , ok)
   end
 
@@ -145,7 +149,7 @@ function get_config_internal(conf)
       end
 
       -- Hash key of the config application Id
-      local hash_key = ngx_md5(conf.application_id)
+      local hash_key = string.sub(conf.application_id, -10)
 
       -- Create empty table for user/company rules
       if entity_rules[hash_key] == nil then
@@ -225,12 +229,13 @@ local function send_events_batch(premature)
   -- Temp hash key for debug 
   local temp_hash_key
   local batch_events = {}
+  local total_events_sent_in_this_cycle = 0
   repeat
     for key, queue in pairs(queue_hashes) do
       local configuration = config_hashes[key]
       -- Temp hash key
       temp_hash_key = key
-      if #queue > 0 and ((socket.gettime()*1000 - start_time) <= configuration.max_callback_time_spent) then
+      if #queue > 0 and ((socket.gettime()*1000 - start_time) <= math.min(configuration.max_callback_time_spent, timer_wakeup_seconds * 500)) and (total_events_sent_in_this_cycle < configuration.max_events_sent_per_callback) then
         ngx_log(ngx.DEBUG, "[moesif] Sending events to Moesif")
         -- Getting the configuration for this particular key
         local start_con_time = socket.gettime()*1000
@@ -245,6 +250,23 @@ local function send_events_batch(premature)
             local event = table.remove(queue)
             counter = counter + 1
             table.insert(batch_events, event)
+            -- Add total number of events to send in this cycle
+            total_events_sent_in_this_cycle = total_events_sent_in_this_cycle + 1
+
+            if (total_events_sent_in_this_cycle == configuration.max_events_sent_per_callback) then 
+              local start_pay_time = socket.gettime()*1000
+               if pcall(send_payload, send_events_socket, parsed_url, batch_events, configuration) then 
+                sent_event = sent_event + #batch_events
+               end
+               local end_pay_time = socket.gettime()*1000
+               if configuration.debug then
+                ngx_log(ngx.DEBUG, "[moesif] send payload with event count - " .. tostring(#batch_events) .. " took time - ".. tostring(end_pay_time - start_pay_time).." for pid - ".. ngx.worker.pid())
+               end
+               batch_events = {}
+               ngx_log(ngx.DEBUG, "[moesif] Max events sent per callback, skip sending more events - " .." for pid - ".. ngx.worker.pid())
+               break
+            end
+
             if (#batch_events == configuration.batch_size) then
               local start_pay_time = socket.gettime()*1000
                if pcall(send_payload, send_events_socket, parsed_url, batch_events, configuration) then 
@@ -319,6 +341,7 @@ local function send_events_batch(premature)
   -- Manually garbage collect every alternate cycle
   gc = gc + 1 
   if gc == 8 then 
+    ngx_log(ngx.INFO, "[moesif] Calling GC at - "..tostring(socket.gettime()*1000).." in pid - ".. ngx.worker.pid())
     collectgarbage()
     gc = 0
   end
@@ -328,7 +351,7 @@ local function send_events_batch(premature)
   if health_check == 150 then
     if rec_event ~= 0 then
       local event_perc = sent_event / rec_event
-      ngx_log(ngx.INFO, "[moesif] heartbeat - "..tostring(event_perc).." in pid - ".. ngx.worker.pid())
+      ngx_log(ngx.INFO, "[moesif] heartbeat - "..tostring(rec_event).."/"..tostring(sent_event).."/"..tostring(sent_success).."/"..tostring(sent_failure).."/"..tostring(event_perc).." in pid - ".. ngx.worker.pid())
     end
     health_check = 0
   end
@@ -377,7 +400,7 @@ end
 
 function _M.execute(conf, message)
   -- Hash key of the config application Id
-  local hash_key = ngx_md5(conf.application_id)
+  local hash_key = string.sub(conf.application_id, -10)
 
   if message["user_id"] ~= nil then 
     conf["user_id"] = message["user_id"]
@@ -410,8 +433,11 @@ end
 
 -- Schedule Events batch job
 function _M.start_background_thread()
-  ngx.log(ngx.DEBUG, "[moesif] Scheduling Events batch job every 1 seconds")
-  local ok, err = ngx_timer_every(1.5, send_events_batch)
+
+  local timer_wakeup_seconds_with_delta = timer_wakeup_seconds + math.random()
+  ngx.log(ngx.DEBUG, "[moesif] Scheduling Events batch job every ".. tostring(timer_wakeup_seconds_with_delta).." seconds")
+
+  local ok, err = ngx_timer_every(timer_wakeup_seconds_with_delta, send_events_batch)
   if not ok then
       ngx.log(ngx.ERR, "[moesif] Error when scheduling the job: "..err)
   end

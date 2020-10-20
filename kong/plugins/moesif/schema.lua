@@ -24,5 +24,6 @@ return {
     company_id_header = {default = "", type = "string"},
     max_callback_time_spent = {default = 1000, type = "number"},
     max_body_size_limit = {default = 500000, type = "number"},
+    max_events_sent_per_callback = {default = 400, type = "number"},
   }
 }

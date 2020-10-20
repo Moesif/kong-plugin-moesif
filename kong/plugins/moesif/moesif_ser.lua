@@ -11,6 +11,7 @@ local ngx_log_ERR = ngx.ERR
 local client_ip = require "kong.plugins.moesif.client_ip"
 local zzlib = require "kong.plugins.moesif.zzlib"
 local base64 = require "kong.plugins.moesif.base64"
+local helpers = require "kong.plugins.moesif.helpers"
 
 function mask_body(body, masks)
   if masks == nil then return body end
@@ -140,9 +141,14 @@ function _M.serialize(ngx, conf)
   end
 
   -- Add Transaction Id to the response header
-  if not conf.disable_transaction_id and transaction_id ~= nil then
-    response_headers["X-Moesif-Transaction-Id"] = generated_uuid
+  if not conf.disable_transaction_id and request_headers["X-Moesif-Transaction-Id"] ~= nil then
+    response_headers["X-Moesif-Transaction-Id"] = request_headers["X-Moesif-Transaction-Id"]
+  else
+    response_headers["X-Moesif-Transaction-Id"] = helpers.uuid()
   end
+
+  -- Add worker process id
+  response_headers["X-Kong-PID"] = ngx.worker.pid()
 
   if moesif_ctx.req_body == nil or conf.disable_capture_request_body then
     request_body_entity = nil
