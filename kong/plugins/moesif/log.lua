@@ -434,7 +434,7 @@ end
 -- Schedule Events batch job
 function _M.start_background_thread()
 
-  local timer_wakeup_seconds_with_delta = timer_wakeup_seconds + math.random()
+  local timer_wakeup_seconds_with_delta = timer_wakeup_seconds + (math.random(-10, 10) / 100)
   ngx.log(ngx.DEBUG, "[moesif] Scheduling Events batch job every ".. tostring(timer_wakeup_seconds_with_delta).." seconds")
 
   local ok, err = ngx_timer_every(timer_wakeup_seconds_with_delta, send_events_batch)
