@@ -164,7 +164,8 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 |config.user_id_header|X-Consumer-Custom-Id|Request or response header to use to identify the User in Moesif.|
 |config.company_id_header||Request or response header to use to identify the Company (Account) in Moesif.|
 |config.disable_gzip_payload_decompression|false|If set to true, will disable decompressing body in Kong.|
-|config.max_callback_time_spent|2000|Maximum callback time to send even to Moesif.|
+|config.max_callback_time_spent|2000|Limiter on how much time to send events to Moesif per worker cycle.|
+|config.max_events_sent_per_callback|400|Limiter on how many events are logged to Moesif per worker cycle.|
 |config.max_body_size_limit|100000|Maximum request/response body size in bytes to log in Moesif.|
 |config.event_queue_size|5000|Maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skips adding new to event to queue to prevent memory overflow.|
 |config.debug|false|If set to true, prints internal log messages for debugging integration issues.|
