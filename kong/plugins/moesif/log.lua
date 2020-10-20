@@ -230,12 +230,13 @@ local function send_events_batch(premature)
   -- Temp hash key for debug 
   local temp_hash_key
   local batch_events = {}
+  local total_events_sent_in_this_cycle = 0
   repeat
     for key, queue in pairs(queue_hashes) do
       local configuration = config_hashes[key]
       -- Temp hash key
       temp_hash_key = key
-      if #queue > 0 and ((socket.gettime()*1000 - start_time) <= math.min(configuration.max_callback_time_spent, timer_wakeup_seconds * 500)) then
+      if #queue > 0 and ((socket.gettime()*1000 - start_time) <= math.min(configuration.max_callback_time_spent, timer_wakeup_seconds * 500)) and (total_events_sent_in_this_cycle < configuration.max_events_sent_per_callback) then
         ngx_log(ngx.DEBUG, "[moesif] Sending events to Moesif")
         -- Getting the configuration for this particular key
         local start_con_time = socket.gettime()*1000
@@ -246,7 +247,6 @@ local function send_events_batch(premature)
         end
         if type(send_events_socket) == "table" and next(send_events_socket) ~= nil then
           local counter = 0
-          local total_events_sent_in_this_cycle = 0
           repeat
             local event = table.remove(queue)
             counter = counter + 1

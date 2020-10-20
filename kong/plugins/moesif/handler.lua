@@ -124,8 +124,8 @@ end
 function MoesifLogHandler:header_filter(conf)
 MoesifLogHandler.super.header_filter(self)
 
-    if not conf.disable_transaction_id and transaction_id ~= nil then
-     ngx.header["X-Moesif-Transaction-Id"] = helper.uuid()
+    if not conf.disable_transaction_id then
+      ngx.header["X-Moesif-Transaction-Id"] = helpers.uuid()
     end
 end
 

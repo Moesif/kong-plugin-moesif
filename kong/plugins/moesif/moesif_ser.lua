@@ -141,8 +141,10 @@ function _M.serialize(ngx, conf)
   end
 
   -- Add Transaction Id to the response header
-  if not conf.disable_transaction_id and transaction_id ~= nil then
-    response_headers["X-Moesif-Transaction-Id"] = helper.uuid()
+  if not conf.disable_transaction_id and request_headers["X-Moesif-Transaction-Id"] ~= nil then
+    response_headers["X-Moesif-Transaction-Id"] = request_headers["X-Moesif-Transaction-Id"]
+  else
+    response_headers["X-Moesif-Transaction-Id"] = helpers.uuid()
   end
 
   -- Add worker process id
