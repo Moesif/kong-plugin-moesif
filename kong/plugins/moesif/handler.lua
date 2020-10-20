@@ -2,26 +2,17 @@ local serializer = require "kong.plugins.moesif.moesif_ser"
 local governance = require "kong.plugins.moesif.moesif_gov"
 local BasePlugin = require "kong.plugins.base_plugin"
 local log = require "kong.plugins.moesif.log"
+local helpers = require "kong.plugins.moesif.helpers"
 local req_set_header = ngx.req.set_header
 local string_find = string.find
 local req_read_body = ngx.req.read_body
 local req_get_headers = ngx.req.get_headers
 local req_get_body_data = ngx.req.get_body_data
-local transaction_id = nil
 local socket = require "socket"
 local MoesifLogHandler = BasePlugin:extend()
 queue_hashes = {}
 local ngx_md5 = ngx.md5
 
--- function to generate uuid
-local random = math.random
-local function uuid()
-    local template ='xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
-    return string.gsub(template, '[xy]', function (c)
-        local v = (c == 'x') and random(0, 0xf) or random(8, 0xb)
-        return string.format('%x', v)
-    end)
-end
 
 function MoesifLogHandler:new()
   MoesifLogHandler.super.new(self, "moesif")
@@ -33,21 +24,6 @@ function MoesifLogHandler:access(conf)
   local start_access_phase_time = socket.gettime()*1000
 
   local headers = req_get_headers()
-  -- Add Transaction Id to the request header
-  if not conf.disable_transaction_id then
-    if headers["X-Moesif-Transaction-Id"] ~= nil then
-      local req_trans_id = headers["X-Moesif-Transaction-Id"]
-      if req_trans_id ~= nil and req_trans_id:gsub("%s+", "") ~= "" then
-        transaction_id = req_trans_id
-      else
-        transaction_id = uuid()
-      end
-    else
-      transaction_id = uuid()
-    end
-  -- Add Transaction Id to the request header
-  req_set_header("X-Moesif-Transaction-Id", transaction_id)
-  end
 
   local req_body, res_body = "", ""
   local req_post_args = {}
@@ -149,7 +125,7 @@ function MoesifLogHandler:header_filter(conf)
 MoesifLogHandler.super.header_filter(self)
 
     if not conf.disable_transaction_id and transaction_id ~= nil then
-     ngx.header["X-Moesif-Transaction-Id"] = transaction_id
+     ngx.header["X-Moesif-Transaction-Id"] = helper.uuid()
     end
 end
 
@@ -159,7 +135,7 @@ function MoesifLogHandler:init_worker()
 end
 
 MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "0.2.21.patch1"
+MoesifLogHandler.VERSION = "0.2.22"
 
 -- Plugin version
 plugin_version = MoesifLogHandler.VERSION

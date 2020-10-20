@@ -20,6 +20,9 @@ local gc = 0
 local health_check = 0
 local rec_event = 0
 local sent_event = 0
+local sent_success = 0
+local sent_failure = 0
+local timer_wakeup_seconds = 1.5
 local gr_helpers = require "kong.plugins.moesif.governance_helpers"
 entity_rules = {}
 
@@ -65,8 +68,10 @@ local function send_payload(sock, parsed_url, batch_events, conf)
   sock:settimeout(conf.send_timeout)
   local ok, err = sock:send(generate_post_payload(parsed_url, access_token, batch_events, application_id, debug) .. "\r\n")
   if not ok then
+    sent_failure = sent_failure + #batch_events
     ngx_log(ngx.DEBUG, "[moesif] failed to send data to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
   else
+    sent_success = sent_success + #batch_events
     ngx_log(ngx.DEBUG, "[moesif] Events sent successfully " , ok)
   end
 
@@ -230,7 +235,7 @@ local function send_events_batch(premature)
       local configuration = config_hashes[key]
       -- Temp hash key
       temp_hash_key = key
-      if #queue > 0 and ((socket.gettime()*1000 - start_time) <= configuration.max_callback_time_spent) then
+      if #queue > 0 and ((socket.gettime()*1000 - start_time) <= math.min(configuration.max_callback_time_spent, timer_wakeup_seconds * 500)) then
         ngx_log(ngx.DEBUG, "[moesif] Sending events to Moesif")
         -- Getting the configuration for this particular key
         local start_con_time = socket.gettime()*1000
@@ -241,10 +246,28 @@ local function send_events_batch(premature)
         end
         if type(send_events_socket) == "table" and next(send_events_socket) ~= nil then
           local counter = 0
+          local total_events_sent_in_this_cycle = 0
           repeat
             local event = table.remove(queue)
             counter = counter + 1
             table.insert(batch_events, event)
+            -- Add total number of events to send in this cycle
+            total_events_sent_in_this_cycle = total_events_sent_in_this_cycle + 1
+
+            if (total_events_sent_in_this_cycle == configuration.max_events_sent_per_callback) then 
+              local start_pay_time = socket.gettime()*1000
+               if pcall(send_payload, send_events_socket, parsed_url, batch_events, configuration) then 
+                sent_event = sent_event + #batch_events
+               end
+               local end_pay_time = socket.gettime()*1000
+               if configuration.debug then
+                ngx_log(ngx.DEBUG, "[moesif] send payload with event count - " .. tostring(#batch_events) .. " took time - ".. tostring(end_pay_time - start_pay_time).." for pid - ".. ngx.worker.pid())
+               end
+               batch_events = {}
+               ngx_log(ngx.DEBUG, "[moesif] Max events sent per callback, skip sending more events - " .." for pid - ".. ngx.worker.pid())
+               break
+            end
+
             if (#batch_events == configuration.batch_size) then
               local start_pay_time = socket.gettime()*1000
                if pcall(send_payload, send_events_socket, parsed_url, batch_events, configuration) then 
@@ -319,6 +342,7 @@ local function send_events_batch(premature)
   -- Manually garbage collect every alternate cycle
   gc = gc + 1 
   if gc == 8 then 
+    ngx_log(ngx.INFO, "[moesif] Calling GC at - "..tostring(socket.gettime()*1000).." in pid - ".. ngx.worker.pid())
     collectgarbage()
     gc = 0
   end
@@ -328,7 +352,7 @@ local function send_events_batch(premature)
   if health_check == 150 then
     if rec_event ~= 0 then
       local event_perc = sent_event / rec_event
-      ngx_log(ngx.INFO, "[moesif] heartbeat - "..tostring(event_perc).." in pid - ".. ngx.worker.pid())
+      ngx_log(ngx.INFO, "[moesif] heartbeat received - "..tostring(rec_event).." attempted sent -  "..tostring(sent_event).." actual sent success -  "..tostring(sent_success).." actual sent failure -  "..tostring(sent_failure).." perc -  "..tostring(event_perc).." in pid - ".. ngx.worker.pid())
     end
     health_check = 0
   end
@@ -410,8 +434,11 @@ end
 
 -- Schedule Events batch job
 function _M.start_background_thread()
-  ngx.log(ngx.DEBUG, "[moesif] Scheduling Events batch job every 1 seconds")
-  local ok, err = ngx_timer_every(1.5, send_events_batch)
+
+  local timer_wakeup_seconds_with_delta = timer_wakeup_seconds + math.random()
+  ngx.log(ngx.DEBUG, "[moesif] Scheduling Events batch job every ".. tostring(timer_wakeup_seconds_with_delta).." seconds")
+
+  local ok, err = ngx_timer_every(timer_wakeup_seconds_with_delta, send_events_batch)
   if not ok then
       ngx.log(ngx.ERR, "[moesif] Error when scheduling the job: "..err)
   end
