@@ -37,7 +37,7 @@ function MoesifLogHandler:access(conf)
     -- Read request body
     req_read_body()
     local read_request_body = req_get_body_data()
-    if (content_length == nil and read_request_body ~= nil and string.len(read_request_body) <= conf.max_body_size_limit) or (content_length ~= nil and tonumber(content_length) <= conf.max_body_size_limit) then 
+    if (content_length == nil and read_request_body ~= nil and string.len(read_request_body) <= conf.request_max_body_size_limit) or (content_length ~= nil and tonumber(content_length) <= conf.request_max_body_size_limit) then 
       req_body = read_request_body
       local content_type = headers["content-type"]
       if content_type and string_find(content_type:lower(), "application/x-www-form-urlencoded", nil, true) then
@@ -76,7 +76,7 @@ end
     if (queue_hashes[hash_key] == nil) or 
           (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
 
-      if (content_length == nil) or (tonumber(content_length) <= conf.max_body_size_limit) then
+      if (content_length == nil) or (tonumber(content_length) <= conf.response_max_body_size_limit) then
         local chunk = ngx.arg[1]
         local moesif_data = ngx.ctx.moesif or {res_body = ""} -- minimize the number of calls to ngx.ctx while fallbacking on default value
         moesif_data.res_body = moesif_data.res_body .. chunk
@@ -85,19 +85,19 @@ end
     end
  end
 
- -- Function to ensure response body size is less than conf.max_body_size_limit
-function ensurre_body_size_under_limit(ngx, conf)
+ -- Function to ensure response body size is less than conf.response_max_body_size_limit
+function ensure_body_size_under_limit(ngx, conf)
   local moesif_ctx = ngx.ctx.moesif or {}
 
-  if moesif_ctx.res_body ~= nil and (string.len(moesif_ctx.res_body) >= conf.max_body_size_limit) then
+  if moesif_ctx.res_body ~= nil and (string.len(moesif_ctx.res_body) >= conf.response_max_body_size_limit) then
     moesif_ctx.res_body = nil
   end
 end
 
 function log_event(ngx, conf)
   local start_log_phase_time = socket.gettime()*1000
-  -- Ensure that the response body size is less than conf.max_body_size_limit incase content-lenght header is not set
-  ensurre_body_size_under_limit(ngx, conf)
+  -- Ensure that the response body size is less than conf.response_max_body_size_limit incase content-lenght header is not set
+  ensure_body_size_under_limit(ngx, conf)
   local message = serializer.serialize(ngx, conf)
   log.execute(conf, message)
   local end_log_phase_time = socket.gettime()*1000
@@ -134,7 +134,7 @@ function MoesifLogHandler:init_worker()
 end
 
 MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "0.2.23"
+MoesifLogHandler.VERSION = "0.2.24"
 
 -- Plugin version
 plugin_version = MoesifLogHandler.VERSION

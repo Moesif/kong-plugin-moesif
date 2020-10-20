@@ -55,18 +55,18 @@ function process_data(body, mask_fields)
   return body_entity, body_transfer_encoding
 end
 
-function decompress_body(body, masks)
+function decompress_body(body, masks, conf)
   local body_entity = nil
   local body_transfer_encoding = nil
 
   local ok, decompressed_body = pcall(zzlib.gunzip, body)
   if not ok then
-    if debug then
+    if conf.debug then
       ngx_log(ngx.DEBUG, "[moesif] failed to decompress body: ", decompressed_body)
     end
     body_entity, body_transfer_encoding = base64_encode_body(body)
   else
-    if debug then
+    if conf.debug then
       ngx_log(ngx.DEBUG, " [moesif]  ", "successfully decompressed body: ")
     end
     if is_valid_json(decompressed_body) then 
@@ -109,7 +109,7 @@ function parse_body(headers, body, mask_fields, conf)
     body_entity, body_transfer_encoding = process_data(body, mask_fields)
   elseif headers["content-encoding"] ~= nil and type(body) == "string" and string.find(headers["content-encoding"], "gzip") then
     if not conf.disable_gzip_payload_decompression then 
-      body_entity, body_transfer_encoding = decompress_body(body, mask_fields)
+      body_entity, body_transfer_encoding = decompress_body(body, mask_fields, conf)
     else 
       body_entity, body_transfer_encoding = base64_encode_body(body)
     end
@@ -148,7 +148,9 @@ function _M.serialize(ngx, conf)
   end
 
   -- Add worker process id
-  response_headers["X-Kong-PID"] = ngx.worker.pid()
+  if conf.debug then
+    response_headers["X-Kong-PID"] = ngx.worker.pid()
+  end
 
   if moesif_ctx.req_body == nil or conf.disable_capture_request_body then
     request_body_entity = nil
@@ -191,7 +193,7 @@ function _M.serialize(ngx, conf)
 
   return {
     request = {
-      uri =  ngx.var.scheme .. "://" .. ngx.var.host .. ":" .. ngx.var.server_port .. ngx.var.request_uri,
+      uri =  helpers.prepare_request_uri(ngx, conf),
       headers = request_headers,
       body = request_body_entity,
       verb = req_get_method(),
