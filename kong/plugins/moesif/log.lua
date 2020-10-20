@@ -10,7 +10,6 @@ local string_format = string.format
 local ngx_timer_every = ngx.timer.every
 local config_hashes = {}
 local has_events = false
-local ngx_md5 = ngx.md5
 local compress = require "kong.plugins.moesif.lib_deflate"
 local helper = require "kong.plugins.moesif.helpers"
 local connect = require "kong.plugins.moesif.connection"
@@ -150,7 +149,7 @@ function get_config_internal(conf)
       end
 
       -- Hash key of the config application Id
-      local hash_key = ngx_md5(conf.application_id)
+      local hash_key = string.sub(conf.application_id, -10)
 
       -- Create empty table for user/company rules
       if entity_rules[hash_key] == nil then
@@ -401,7 +400,7 @@ end
 
 function _M.execute(conf, message)
   -- Hash key of the config application Id
-  local hash_key = ngx_md5(conf.application_id)
+  local hash_key = string.sub(conf.application_id, -10)
 
   if message["user_id"] ~= nil then 
     conf["user_id"] = message["user_id"]

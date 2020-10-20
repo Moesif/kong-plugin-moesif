@@ -11,7 +11,6 @@ local req_get_body_data = ngx.req.get_body_data
 local socket = require "socket"
 local MoesifLogHandler = BasePlugin:extend()
 queue_hashes = {}
-local ngx_md5 = ngx.md5
 
 
 function MoesifLogHandler:new()
@@ -31,7 +30,7 @@ function MoesifLogHandler:access(conf)
   local mimetype = nil
   local content_length = headers["content-length"]
   -- Hash key of the config application Id
-  local hash_key = ngx_md5(conf.application_id)
+  local hash_key = string.sub(conf.application_id, -10)
   if (queue_hashes[hash_key] == nil) or 
         (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
 
@@ -73,7 +72,7 @@ end
     local content_length = headers["content-length"]
 
     -- Hash key of the config application Id
-    local hash_key = ngx_md5(conf.application_id)
+    local hash_key = string.sub(conf.application_id, -10)
     if (queue_hashes[hash_key] == nil) or 
           (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
 
@@ -109,7 +108,7 @@ function MoesifLogHandler:log(conf)
   MoesifLogHandler.super.log(self)
 
   -- Hash key of the config application Id
-  local hash_key = ngx_md5(conf.application_id)
+  local hash_key = string.sub(conf.application_id, -10)
   if (queue_hashes[hash_key] == nil) or 
         (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
     log_event(ngx, conf)
