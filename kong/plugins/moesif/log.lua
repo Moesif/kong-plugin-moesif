@@ -13,6 +13,7 @@ local has_events = false
 local compress = require "kong.plugins.moesif.lib_deflate"
 local helper = require "kong.plugins.moesif.helpers"
 local connect = require "kong.plugins.moesif.connection"
+local regex_config_helper = require "kong.plugins.moesif.regex_config_helpers"
 local socket = require "socket"
 local sampling_rate = 100
 local gc = 0
@@ -139,7 +140,7 @@ function get_config_internal(conf)
       local config_tag = string.match(config_response, "ETag%s*:%s*(.-)\n")
 
       if config_tag ~= nil then
-      conf["ETag"] = config_tag
+        conf["ETag"] = config_tag
       end
 
       -- Check if the governance rule is updated
@@ -172,7 +173,17 @@ function get_config_internal(conf)
       if (conf["sample_rate"] ~= nil) and (response_body ~= nil) then
         if (response_body["user_sample_rate"] ~= nil) then
           conf["user_sample_rate"] = response_body["user_sample_rate"]
-        else 
+        end
+
+        if (response_body["company_sample_rate"] ~= nil) then
+          conf["company_sample_rate"] = response_body["company_sample_rate"]
+        end
+
+        if (response_body["regex_config"] ~= nil) then
+          conf["regex_config"] = response_body["regex_config"]
+        end
+
+        if (response_body["sample_rate"] ~= nil) then 
           conf["sample_rate"] = response_body["sample_rate"]
         end
       end
@@ -229,13 +240,12 @@ local function send_events_batch(premature)
   -- Temp hash key for debug 
   local temp_hash_key
   local batch_events = {}
-  local total_events_sent_in_this_cycle = 0
   repeat
     for key, queue in pairs(queue_hashes) do
       local configuration = config_hashes[key]
       -- Temp hash key
       temp_hash_key = key
-      if #queue > 0 and ((socket.gettime()*1000 - start_time) <= math.min(configuration.max_callback_time_spent, timer_wakeup_seconds * 500)) and (total_events_sent_in_this_cycle < configuration.max_events_sent_per_callback) then
+      if #queue > 0 and ((socket.gettime()*1000 - start_time) <= math.min(configuration.max_callback_time_spent, timer_wakeup_seconds * 500)) then
         ngx_log(ngx.DEBUG, "[moesif] Sending events to Moesif")
         -- Getting the configuration for this particular key
         local start_con_time = socket.gettime()*1000
@@ -250,22 +260,6 @@ local function send_events_batch(premature)
             local event = table.remove(queue)
             counter = counter + 1
             table.insert(batch_events, event)
-            -- Add total number of events to send in this cycle
-            total_events_sent_in_this_cycle = total_events_sent_in_this_cycle + 1
-
-            if (total_events_sent_in_this_cycle == configuration.max_events_sent_per_callback) then 
-              local start_pay_time = socket.gettime()*1000
-               if pcall(send_payload, send_events_socket, parsed_url, batch_events, configuration) then 
-                sent_event = sent_event + #batch_events
-               end
-               local end_pay_time = socket.gettime()*1000
-               if configuration.debug then
-                ngx_log(ngx.DEBUG, "[moesif] send payload with event count - " .. tostring(#batch_events) .. " took time - ".. tostring(end_pay_time - start_pay_time).." for pid - ".. ngx.worker.pid())
-               end
-               batch_events = {}
-               ngx_log(ngx.DEBUG, "[moesif] Max events sent per callback, skip sending more events - " .." for pid - ".. ngx.worker.pid())
-               break
-            end
 
             if (#batch_events == configuration.batch_size) then
               local start_pay_time = socket.gettime()*1000
@@ -378,8 +372,18 @@ local function log(conf, message, hash_key)
     conf.sample_rate = 100
   end
 
-  if type(conf.user_sample_rate) == "table" and next(conf.user_sample_rate) ~= nil and message["user_id"] ~= nil and conf.user_sample_rate[message["user_id"]]~= nil then 
+  if type(conf.user_sample_rate) == "table" and next(conf.user_sample_rate) ~= nil and message["user_id"] ~= nil and conf.user_sample_rate[message["user_id"]] ~= nil then 
     sampling_rate = conf.user_sample_rate[message["user_id"]]
+  elseif type(conf.company_sample_rate) == "table" and next(conf.company_sample_rate) ~= nil and message["company_id"] ~= nil and conf.company_sample_rate[message["company_id"]] ~= nil then 
+    sampling_rate = conf.company_sample_rate[message["company_id"]]
+  elseif type(conf.regex_config) == "table" and next(conf.regex_config) ~= nil then
+    local config_mapping = regex_config_helper.prepare_config_mapping(message)
+    local ok, sample_rate, block_rule = pcall(regex_config_helper.fetch_sample_rate_block_request_on_regex_match, conf.regex_config, config_mapping)
+    if not ok then
+      sampling_rate = conf.sample_rate
+    else 
+      sampling_rate = sample_rate  
+    end
   else 
     sampling_rate = conf.sample_rate
   end
@@ -402,11 +406,10 @@ function _M.execute(conf, message)
   -- Hash key of the config application Id
   local hash_key = string.sub(conf.application_id, -10)
 
-  if message["user_id"] ~= nil then 
-    conf["user_id"] = message["user_id"]
-  else 
-    conf["user_id"] = nil
-  end
+  -- User Id 
+  conf["user_id"] = helper.fetch_entity_id(message, "user_id")
+  -- Company Id
+  conf["company_id"] = helper.fetch_entity_id(message, "company_id")
 
   if config_hashes[hash_key] == nil then
     local ok, err = ngx_timer_at(0, get_config, conf)
@@ -421,6 +424,8 @@ function _M.execute(conf, message)
     end
     conf["sample_rate"] = 100
     conf["user_sample_rate"] = {}
+    conf["company_sample_rate"] = {}
+    conf["regex_config"] = {}
     conf["ETag"] = nil
     conf["user_rules"] = {}
     conf["company_rules"] = {}
@@ -434,10 +439,9 @@ end
 -- Schedule Events batch job
 function _M.start_background_thread()
 
-  local timer_wakeup_seconds_with_delta = timer_wakeup_seconds + (math.random(-10, 10) / 100)
-  ngx.log(ngx.DEBUG, "[moesif] Scheduling Events batch job every ".. tostring(timer_wakeup_seconds_with_delta).." seconds")
+  ngx.log(ngx.DEBUG, "[moesif] Scheduling Events batch job every ".. tostring(timer_wakeup_seconds).." seconds")
 
-  local ok, err = ngx_timer_every(timer_wakeup_seconds_with_delta, send_events_batch)
+  local ok, err = ngx_timer_every(timer_wakeup_seconds, send_events_batch)
   if not ok then
       ngx.log(ngx.ERR, "[moesif] Error when scheduling the job: "..err)
   end

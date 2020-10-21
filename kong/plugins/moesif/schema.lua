@@ -22,8 +22,9 @@ return {
     disable_gzip_payload_decompression = {default = false, type = "boolean"},
     user_id_header = {default = "", type = "string"},
     company_id_header = {default = "", type = "string"},
-    max_callback_time_spent = {default = 1000, type = "number"},
-    max_body_size_limit = {default = 500000, type = "number"},
-    max_events_sent_per_callback = {default = 400, type = "number"},
+    max_callback_time_spent = {default = 750, type = "number"},
+    request_max_body_size_limit = {default = 100000, type = "number"},
+    response_max_body_size_limit = {default = 100000, type = "number"},
+    request_query_masks = {default = {}, type = "array"},
   }
 }

@@ -7,6 +7,7 @@ local ngx_log = ngx.log
 local ngx_log_ERR = ngx.ERR
 governance_rules_etags = {}
 governance_rules_hashes = {}
+regex_governance_rules_hashes = {}
 
 -- Get Governance Rules function
 -- @param hash_key   Hash key of the config application Id
@@ -66,14 +67,21 @@ function _M.get_governance_rules(hash_key, conf)
 
             -- Get the governance rules
             local governance_rules = {}
+            local regex_rules = {}
             local response_body = cjson.decode(governance_rules_response:match("(%[.*])"))
             for k, rule in pairs(response_body) do
                 governance_rules[rule["_id"]] = rule
+                 -- Filter governance rules of type regex
+                 if rule["type"] ~= nil and rule["type"] == "regex" then
+                    regex_rules[rule["_id"]] = rule
+                end
             end
 
             -- Save the governance rule in the dictionary
             if type(governance_rules) == "table" and next(governance_rules) ~= nil then
                 governance_rules_hashes[hash_key] = governance_rules
+                 -- Save the governance rules of type regex in the dictionary
+                 regex_governance_rules_hashes[hash_key] = regex_rules
             end
 
             -- Read the Response tag
