@@ -391,7 +391,7 @@ local function log(conf, message, hash_key)
     sampling_rate = conf.sample_rate
   end
 
-  if sampling_rate >= random_percentage then
+  if sampling_rate > random_percentage then
     if conf.debug then 
       ngx_log(ngx.DEBUG, "[moesif] Event added to the queue")
     end
