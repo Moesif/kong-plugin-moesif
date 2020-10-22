@@ -22,6 +22,7 @@ local rec_event = 0
 local sent_event = 0
 local sent_success = 0
 local sent_failure = 0
+local merge_config = 0
 local timer_wakeup_seconds = 1.5
 local gr_helpers = require "kong.plugins.moesif.governance_helpers"
 entity_rules = {}
@@ -433,8 +434,12 @@ function _M.execute(conf, message)
   end
 
   -- Merge user-defined and moesif configs as user-defined config could be change at any time
-  for k,v in pairs(conf) do
-    config_hashes[hash_key][k] = v
+  merge_config = merge_config + 1
+  if merge_config == 100 then
+    for k,v in pairs(conf) do
+      config_hashes[hash_key][k] = v
+    end
+    merge_config = 0
   end
   -- Log event to moesif
   log(config_hashes[hash_key], message, hash_key)
