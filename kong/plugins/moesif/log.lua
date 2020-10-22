@@ -431,6 +431,9 @@ function _M.execute(conf, message)
     app_configs["company_rules"] = {}
     config_hashes[hash_key] = app_configs
     queue_hashes[hash_key] = {} 
+    for k,v in pairs(conf) do
+      config_hashes[hash_key][k] = v
+    end
   end
 
   -- Merge user-defined and moesif configs as user-defined config could be change at any time
