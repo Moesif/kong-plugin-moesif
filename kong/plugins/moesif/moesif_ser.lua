@@ -122,8 +122,8 @@ end
 function _M.serialize(ngx, conf)
   local moesif_ctx = ngx.ctx.moesif or {}
   local session_token_entity
-  local user_id_entity
-  local company_id_entity
+  local user_id_entity = nil
+  local company_id_entity = nil
   local request_body_entity
   local response_body_entity
   local blocked_by_entity
@@ -138,13 +138,6 @@ function _M.serialize(ngx, conf)
 
   if next(conf.response_header_masks) ~= nil then
     response_headers = mask_headers(res_get_headers(), conf.response_header_masks)
-  end
-
-  -- Add Transaction Id to the response header
-  if not conf.disable_transaction_id and request_headers["X-Moesif-Transaction-Id"] ~= nil then
-    response_headers["X-Moesif-Transaction-Id"] = request_headers["X-Moesif-Transaction-Id"]
-  else
-    response_headers["X-Moesif-Transaction-Id"] = helpers.uuid()
   end
 
   -- Add worker process id
@@ -178,17 +171,17 @@ function _M.serialize(ngx, conf)
     session_token_entity = nil
   end
 
-  if conf.user_id_entity == nil and response_headers[conf.user_id_header] ~= nil  then 
-    conf.user_id_entity = tostring(response_headers[conf.user_id_header])
+  if moesif_ctx.user_id_entity == nil and response_headers[conf.user_id_header] ~= nil  then 
+    moesif_ctx.user_id_entity = tostring(response_headers[conf.user_id_header])
   end 
 
-  if conf.company_id_entity == nil and response_headers[conf.company_id_header] ~= nil then
-    conf.company_id_entity = tostring(response_headers[conf.company_id_header])
+  if moesif_ctx.company_id_entity == nil and response_headers[conf.company_id_header] ~= nil then
+    moesif_ctx.company_id_entity = tostring(response_headers[conf.company_id_header])
   end
 
   -- Add blocked_by field to the event to determine the rule by which the event was blocked
-  if conf.blocked_by ~= nil then 
-    blocked_by_entity = conf.blocked_by
+  if moesif_ctx.blocked_by ~= nil then 
+    blocked_by_entity = moesif_ctx.blocked_by
   end
 
   return {
@@ -211,8 +204,8 @@ function _M.serialize(ngx, conf)
       transfer_encoding = rsp_body_transfer_encoding,
     },
     session_token = session_token_entity,
-    user_id = conf.user_id_entity,
-    company_id = conf.company_id_entity,
+    user_id = moesif_ctx.user_id_entity,
+    company_id = moesif_ctx.company_id_entity,
     direction = "Incoming",
     blocked_by = blocked_by_entity
   }

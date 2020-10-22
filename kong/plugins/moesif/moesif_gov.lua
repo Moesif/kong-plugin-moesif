@@ -86,7 +86,7 @@ function block_request_based_on_governance_rule_regex_config(hash_key, rule_id, 
            local gr_status, gr_headers, gr_body = fetch_governance_rule_response_details(governance_rule)
 
            -- Add blocked_by field to the event to determine the rule by which the event was blocked
-           conf["blocked_by"] = rule_id
+           ngx.ctx.moesif["blocked_by"] = rule_id
 
            local end_access_phase_time = socket.gettime()*1000
            ngx.log(ngx.DEBUG, "[moesif] access phase took time for blocking request - ".. tostring(end_access_phase_time - start_access_phase_time).." for pid - ".. ngx.worker.pid())
@@ -190,7 +190,7 @@ function block_request_based_on_entity_governance_rule(hash_key, conf, rule_name
                     end
                 end 
                 -- Add blocked_by field to the event to determine the rule by which the event was blocked
-                conf["blocked_by"] = rule_id
+                ngx.ctx.moesif["blocked_by"] = rule_id
 
                 local end_access_phase_time = socket.gettime()*1000
                 ngx.log(ngx.DEBUG, "[moesif] access phase took time for blocking request - ".. tostring(end_access_phase_time - start_access_phase_time).." for pid - ".. ngx.worker.pid())
@@ -220,8 +220,8 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
 
     -- Hash key of the config application Id
     local hash_key = string.sub(conf.application_id, -10)
-    local user_id_entity
-    local company_id_entity
+    local user_id_entity = nil
+    local company_id_entity = nil
     local request_uri = helper.prepare_request_uri(ngx, conf)
     local request_verb = req_get_method()
     local request_headers = req_get_headers()
@@ -249,8 +249,8 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
     end
 
     -- Set entity in conf to use downstream
-    conf["user_id_entity"] = user_id_entity
-    conf["company_id_entity"] = company_id_entity
+    ngx.ctx.moesif["user_id_entity"] = user_id_entity
+    ngx.ctx.moesif["company_id_entity"] = company_id_entity
 
     if governance_rules_hashes[hash_key] ~= nil and type(governance_rules_hashes[hash_key]) == "table" and next(governance_rules_hashes[hash_key]) ~= nil then
         -- Check if need to block request based on user governance rule

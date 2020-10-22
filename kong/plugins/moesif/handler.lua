@@ -57,7 +57,6 @@ function MoesifLogHandler:access(conf)
   local block_req = governance.govern_request(ngx, conf, start_access_phase_time)
   if block_req == nil then 
     if conf.debug then
-      conf["blocked_by"] = nil
       ngx.log(ngx.DEBUG, '[moesif] No need to block incoming request.')
     end
     local end_access_phase_time = socket.gettime()*1000
@@ -113,7 +112,6 @@ function MoesifLogHandler:log(conf)
         (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
     log_event(ngx, conf)
   else
-    -- log_event(ngx, conf)
     if conf.debug then
       ngx.log(ngx.DEBUG, '[moesif] Queue is full, do not log new events ')
     end
@@ -134,7 +132,7 @@ function MoesifLogHandler:init_worker()
 end
 
 MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "0.2.24"
+MoesifLogHandler.VERSION = "0.2.25"
 
 -- Plugin version
 plugin_version = MoesifLogHandler.VERSION
