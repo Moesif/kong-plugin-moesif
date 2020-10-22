@@ -197,10 +197,13 @@ end
 -- Get App Config function
 -- @param `premature`
 -- @param `conf`     Configuration table, holds http endpoint details
-function get_config(premature, conf)
+function get_config(premature, hash_key)
   if premature then
     return
   end
+
+  -- Fetch the config 
+  local conf = config_hashes[hash_key]
 
   local ok, err = pcall(get_config_internal, conf)
   if not ok then
@@ -213,7 +216,7 @@ function get_config(premature, conf)
     end
   end
 
-  local sok, serr = ngx_timer_at(60, get_config, conf)
+  local sok, serr = ngx_timer_at(60, get_config, hash_key)
   if not sok then
     if conf.debug then
       ngx_log(ngx.ERR, "[moesif] Error when scheduling the get config : ", serr)
@@ -406,13 +409,8 @@ function _M.execute(conf, message)
   -- Hash key of the config application Id
   local hash_key = string.sub(conf.application_id, -10)
 
-  -- User Id 
-  conf["user_id"] = helper.fetch_entity_id(message, "user_id")
-  -- Company Id
-  conf["company_id"] = helper.fetch_entity_id(message, "company_id")
-
   if config_hashes[hash_key] == nil then
-    local ok, err = ngx_timer_at(0, get_config, conf)
+    local ok, err = ngx_timer_at(0, get_config, hash_key)
     if not ok then
       if conf.debug then 
         ngx_log(ngx_log_ERR, "[moesif] failed to get application config, setting the sample_rate to default ", err)
@@ -422,18 +420,24 @@ function _M.execute(conf, message)
         ngx_log(ngx.DEBUG, "[moesif] successfully fetched the application configuration " , ok)
       end
     end
-    conf["sample_rate"] = 100
-    conf["user_sample_rate"] = {}
-    conf["company_sample_rate"] = {}
-    conf["regex_config"] = {}
-    conf["ETag"] = nil
-    conf["user_rules"] = {}
-    conf["company_rules"] = {}
-    config_hashes[hash_key] = conf
+    local app_configs = {}
+    app_configs["sample_rate"] = 100
+    app_configs["user_sample_rate"] = {}
+    app_configs["company_sample_rate"] = {}
+    app_configs["regex_config"] = {}
+    app_configs["ETag"] = nil
+    app_configs["user_rules"] = {}
+    app_configs["company_rules"] = {}
+    config_hashes[hash_key] = app_configs
     queue_hashes[hash_key] = {} 
   end
 
-  log(conf, message, hash_key)
+  -- Merge user-defined and moesif configs as user-defined config could be change at any time
+  for k,v in pairs(conf) do
+    config_hashes[hash_key][k] = v
+  end
+  -- Log event to moesif
+  log(config_hashes[hash_key], message, hash_key)
 end
 
 -- Schedule Events batch job

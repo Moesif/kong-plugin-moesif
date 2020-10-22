@@ -17,8 +17,6 @@ function _M.get_connection(url_path, conf, sock)
   local port = tonumber(parsed_url.port)
 
   sock:settimeout(conf.connect_timeout)
-  local api_version = conf.api_version
-  ngx.ctx.api_version = api_version
   local ok, err = sock:connect(host, port)
   if not ok then
     if conf.debug then 
