@@ -15,7 +15,6 @@ local helper = require "kong.plugins.moesif.helpers"
 local connect = require "kong.plugins.moesif.connection"
 local regex_config_helper = require "kong.plugins.moesif.regex_config_helpers"
 local socket = require "socket"
-local sampling_rate = 100
 local gc = 0
 local health_check = 0
 local rec_event = 0
@@ -371,6 +370,7 @@ end
 local function log(conf, message, hash_key)
   -- Sampling Events
   local random_percentage = math.random() * 100
+  local sampling_rate = 100
 
   if conf.sample_rate == nil then
     conf.sample_rate = 100
