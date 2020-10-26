@@ -15,7 +15,6 @@ local helper = require "kong.plugins.moesif.helpers"
 local connect = require "kong.plugins.moesif.connection"
 local regex_config_helper = require "kong.plugins.moesif.regex_config_helpers"
 local socket = require "socket"
-local sampling_rate = 100
 local gc = 0
 local health_check = 0
 local rec_event = 0
@@ -247,6 +246,11 @@ local function send_events_batch(premature)
   repeat
     for key, queue in pairs(queue_hashes) do
       local configuration = config_hashes[key]
+      if not configuration then
+        ngx_log(ngx.DEBUG, "[moesif] Skipping sending events to Moesif, since no configuration is available yet")
+        return
+      end
+
       -- Temp hash key
       temp_hash_key = key
       if #queue > 0 and ((socket.gettime()*1000 - start_time) <= math.min(configuration.max_callback_time_spent, timer_wakeup_seconds * 500)) then
@@ -371,6 +375,7 @@ end
 local function log(conf, message, hash_key)
   -- Sampling Events
   local random_percentage = math.random() * 100
+  local sampling_rate = 100
 
   if conf.sample_rate == nil then
     conf.sample_rate = 100
@@ -411,16 +416,6 @@ function _M.execute(conf, message)
   local hash_key = string.sub(conf.application_id, -10)
 
   if config_hashes[hash_key] == nil then
-    local ok, err = ngx_timer_at(0, get_config, hash_key)
-    if not ok then
-      if conf.debug then 
-        ngx_log(ngx_log_ERR, "[moesif] failed to get application config, setting the sample_rate to default ", err)
-      end
-    else
-      if conf.debug then 
-        ngx_log(ngx.DEBUG, "[moesif] successfully fetched the application configuration " , ok)
-      end
-    end
     local app_configs = {}
     app_configs["sample_rate"] = 100
     app_configs["user_sample_rate"] = {}
@@ -430,7 +425,17 @@ function _M.execute(conf, message)
     app_configs["user_rules"] = {}
     app_configs["company_rules"] = {}
     config_hashes[hash_key] = app_configs
-    queue_hashes[hash_key] = {} 
+    queue_hashes[hash_key] = {}
+    local ok, err = ngx_timer_at(0, get_config, hash_key)
+    if not ok then
+      if conf.debug then
+        ngx_log(ngx_log_ERR, "[moesif] failed to get application config, setting the sample_rate to default ", err)
+      end
+    else
+      if conf.debug then
+        ngx_log(ngx.DEBUG, "[moesif] successfully fetched the application configuration " , ok)
+      end
+    end
     for k,v in pairs(conf) do
       config_hashes[hash_key][k] = v
     end
