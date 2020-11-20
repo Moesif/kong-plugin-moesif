@@ -1,6 +1,8 @@
 local _M = {}
 local url = require "socket.url"
 local HTTPS = "https"
+local cjson = require "cjson"
+local base64 = require "kong.plugins.moesif.base64"
 
 -- Read data from the socket
 -- @param `socket`  socket
@@ -57,6 +59,24 @@ function _M.uuid()
         local v = (c == 'x') and random(0, 0xf) or random(8, 0xb)
         return string.format('%x', v)
     end)
+end
+
+-- function to parse user id from authorization/user-defined headers
+function _M.parse_authorization_header(token, field)
+  
+  -- Decode the payload
+  local base64_decode_ok, payload = pcall(base64.decode, token)
+  if base64_decode_ok then
+    -- Convert the payload into table
+    local json_decode_ok, decoded_payload = pcall(cjson.decode, payload)
+    if json_decode_ok then
+      -- Fetch the user_id
+      if type(decoded_payload) == "table" and next(decoded_payload) ~= nil and decoded_payload[field] ~= nil then 
+        return tostring(decoded_payload[field])
+      end
+    end
+  end
+  return nil
 end
 
 return _M

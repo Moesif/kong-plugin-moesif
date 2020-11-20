@@ -13,6 +13,7 @@ local string_format = string.format
 local req_get_headers = ngx.req.get_headers
 local cjson = require "cjson"
 local socket = require "socket"
+local base64 = require "kong.plugins.moesif.base64"
 
 -- Fetch governance rule of the entity for which block is true
 -- @param `entity_rules`      List of entity rules
@@ -237,6 +238,50 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
         user_id_entity = tostring(request_headers["x-consumer-username"])
     elseif request_headers["x-consumer-id"] ~= nil then
         user_id_entity = tostring(request_headers["x-consumer-id"])
+    elseif request_headers[conf.authorization_header_name] ~= nil and conf.authorization_user_id_field ~= nil then
+        
+        -- Fetch the token and field from the config
+        local token = request_headers[conf.authorization_header_name]
+        local field = conf.authorization_user_id_field
+
+        -- Check if token is of type Bearer
+        if string.match(token, "Bearer") then
+            -- Fetch the bearer token
+            token = token:gsub("Bearer", "")
+            
+            -- Split the bearer token by dot(.)
+            local split_token = {}
+            for line in token:gsub("%f[.]%.%f[^.]", "\0"):gmatch"%Z+" do 
+                table.insert(split_token, line)
+             end
+            
+            -- Check if payload is not nil
+            if split_token[2] ~= nil then 
+                -- Parse and set user Id
+                user_id_entity = helper.parse_authorization_header(split_token[2], field)
+            else
+                user_id_entity = nil  
+            end 
+        -- Check if token is of type Basic
+        elseif string.match(token, "Basic") then
+            -- Fetch the basic token
+            token = token:gsub("Basic", "")
+            -- Decode the token
+            local decoded_token = base64.decode(token)
+            -- Fetch the username and password
+            local username, _ = decoded_token:match("(.*):(.*)")
+            
+            -- Set the user_id
+            if username ~= nil then
+                user_id_entity = username 
+            else
+                user_id_entity = nil 
+            end 
+        -- Check if token is of user-defined custom type
+        else
+            -- Parse and set the user_id
+            user_id_entity = helper.parse_authorization_header(token, field)
+        end
     else
         user_id_entity = nil
     end
