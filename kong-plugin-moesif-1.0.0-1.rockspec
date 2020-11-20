@@ -1,7 +1,7 @@
 package = "kong-plugin-moesif"  -- TODO: rename, must match the info in the filename of this rockspec!
                                 -- as a convention; stick to the prefix: `kong-plugin-`
-version = "0.2.28-1"        -- TODO: renumber, must match the info in the filename of this rockspec!
--- The version '0.2.28' is the source code version, the trailing '1' is the version of this rockspec.
+version = "1.0.0-1"        -- TODO: renumber, must match the info in the filename of this rockspec!
+-- The version '1.0.0' is the source code version, the trailing '1' is the version of this rockspec.
 -- whenever the source version changes, the rockspec should be reset to 1. The rockspec version is only
 -- updated (incremented) when this file changes, but the source remains the same.
 
@@ -12,7 +12,7 @@ local pluginName = package:match("^kong%-plugin%-(.+)$")  -- "moesif"
 supported_platforms = {"linux", "macosx"}
 source = {
   url = "git://github.com/Moesif/kong-plugin-moesif/",
-  tag = "0.2.28"
+  tag = "1.0.0"
 }
 
 description = {
