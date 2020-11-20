@@ -87,6 +87,7 @@ function _M.encode( str, encoder, usecaching )
 end
 
 
+-- Decode function reference: http://lua-users.org/wiki/BaseSixtyFour
 -- character table string
 local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 
