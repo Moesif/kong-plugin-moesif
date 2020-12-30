@@ -14,6 +14,8 @@ This plugin supports automatic analysis of REST, GraphQL, and other APIs.
 
 ## How to install
 
+> If you are using Kong's [Kubernetes Ingress Controller](https://github.com/Kong/kubernetes-ingress-controller), the installation is slightly different. We recommend reviewing this [blog article](https://www.moesif.com/blog/technical/kong/kubernetes/How-to-Add-Moesif-API-Analytics-and-Monitoring-to-Kong-Ingress-Controller/).
+
 The .rock file is a self contained package that can be installed locally or from a remote server.
 
 If the luarocks utility is installed in your system (this is likely the case if you used one of the official installation packages), you can install the 'rock' in your LuaRocks tree (a directory in which LuaRocks installs Lua modules).
