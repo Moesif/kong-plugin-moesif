@@ -155,7 +155,7 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 |config.connect_timeout|1000|Timeout in milliseconds when connecting to Moesif.|
 |config.send_timeout|2000|Timeout in milliseconds when sending data to Moesif.|
 |config.keepalive|5000|Value in milliseconds that defines for how long an idle connection will live before being closed.|
-|config.api_version|1.0|API Version you want to tag this request with in Moesif.|
+|config.api_version|1.0|API Version you want to tag this request with.|
 |config.disable_capture_request_body|false|Disable logging of request body.|
 |config.disable_capture_response_body|false|Disable logging of response body.|
 |config.request_header_masks|{}|An array of request header fields to mask.|
@@ -163,18 +163,36 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 |config.response_header_masks|{}|An array of response header fields to mask.|
 |config.response_body_masks|{}|An array of response body fields to mask.|
 |config.batch_size|200|Maximum batch size when sending to Moesif.|
-|config.user_id_header|X-Consumer-Custom-Id|Request or response header to use to identify the User in Moesif.|
-|config.company_id_header||Request or response header to use to identify the Company (Account) in Moesif.|
-|config.authorization_header_name|authorization|Request header field name to use to identify the User in Moesif.|
-|config.authorization_user_id_field|sub|Field name use to parse the User from authorization header in Moesif.|
+|config.user_id_header||Request or response header to use for identifying the User. [See identifying users](#identifying-users).|
+|config.company_id_header||Request or response header to use for identifying the Company. [See identifying companies](#identifying-companies).|
+|config.authorization_header_name|authorization|Request header containing a `Bearer` or `Basic` token to extract user id. [See identifying users](#identifying-users).|
+|config.authorization_user_id_field|sub|Field name in JWT/OpenId token's payload for identifying users. Only applicable if `authorization_header_name` is set and is a `Bearer` token. [See identifying users](#identifying-users).|
 |config.disable_gzip_payload_decompression|false|If set to true, will disable decompressing body in Kong.|
 |config.max_callback_time_spent|2000|Limiter on how much time to send events to Moesif per worker cycle.|
-|config.request_max_body_size_limit|100000|Maximum request body size in bytes to log in Moesif.|
-|config.response_max_body_size_limit|100000|Maximum response body size in bytes to log in Moesif.|
+|config.request_max_body_size_limit|100000|Maximum request body size in bytes to log.|
+|config.response_max_body_size_limit|100000|Maximum response body size in bytes to log.|
 |config.request_query_masks|{}|An array of query string params fields to mask.|
 |config.event_queue_size|5000|Maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skips adding new to event to queue to prevent memory overflow.|
 |config.debug|false|If set to true, prints internal log messages for debugging integration issues.|
 
+##  Identifying users
+
+This plugin will automatically identify API users so you can associate API traffic to web traffic and create cross-platform funnel reports of your customer journey.
+The default algorithm covers most authorization designs and works as follows:
+
+1. If the `config.user_id_header` option is set, read the value from the specified HTTP header key `config.user_id_header`.
+2. Else if Kong defined a value for `x-consumer-custom-id`, `x-consumer-username`, or `x-consumer-id` (in that order), use that value.
+3. Else if an authorization token is present in `config.authorization_header_name`, parse the user id from the token as follows:
+   * If header contains `Bearer`, base64 decode the string and use the value defined by `config.authorization_user_id_field` (by default is `sub`).
+   * If header contains `Basic`, base64 decode the string and use the username portion (before the `:` character).
+
+For advanced configurations, you can define a custom header containing the user id via `config.user_id_header` or override the options `config.authorization_header_name` and `config.authorization_user_id_field`.
+
+## Identifying companies
+
+You can associate API users to companies for tracking account-level usage. This can be done either:
+1. Defining `config.company_id_header`, Moesif will use the value present in that header. 
+2. Use the Moesif [update user API](https://www.moesif.com/docs/api#update-a-user) to set a `company_id` for a user. Moesif will associate the API calls automatically.
 
 ## Troubleshooting
 If you want to access debug logs, or to send to Moesif support, you can enable debug logs via the following:
