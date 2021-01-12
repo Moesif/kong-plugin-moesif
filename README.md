@@ -80,7 +80,7 @@ After signing up for a Moesif account, your Moesif Application Id will be displa
 
 You can always find your Moesif Application Id at any time by logging 
 into the [_Moesif Portal_](https://www.moesif.com/), click on the top right menu,
-and then clicking _Installation_.
+and then clicking _API Keys_.
 
 ### Enabling the plugin on a Service
 
@@ -92,7 +92,7 @@ curl -X POST http://kong:8001/services/{service}/plugins \
     --data "config.application_id=MY_MOESIF_APPLICATION_ID"
 ```
 
-- `config.application_id`: You can find your Moesif Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _App Setup_
+- `config.application_id`: You can find your Moesif Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _API Keys_
 - `service`: the id or name of the Service that this plugin configuration will target.
 
 
@@ -106,7 +106,7 @@ curl -X POST http://kong:8001/routes/{route_id}/plugins \
     --data "name=moesif"  \
     --data "config.application_id=MY_MOESIF_APPLICATION_ID"
 ```
-- `config.application_id`: You can find your Moesif Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _App Setup_
+- `config.application_id`: You can find your Moesif Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _API Keys_.
 - `route_id`: the id of the Route that this plugin configuration will target.
 
 ### Enabling the plugin on a Consumer
@@ -120,7 +120,7 @@ curl -X POST http://kong:8001/plugins \
     --data "config.application_id=MY_MOESIF_APPLICATION_ID"
 ```
 
-- `config.application_id`: You can find your Moesif Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _App Setup_
+- `config.application_id`: You can find your Moesif Application Id from [_Moesif Dashboard_](https://www.moesif.com/) -> _Top Right Menu_ -> _API Keys_.
 - `consumer_id`: the id of the Consumer we want to associate with this plugin.
 
 You can combine `consumer_id` and `service_id` in the same request, to furthermore narrow the scope of the plugin.
@@ -165,7 +165,7 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 |config.batch_size|200|Maximum batch size when sending to Moesif.|
 |config.user_id_header||Request or response header to use for identifying the User. [See identifying users](#identifying-users).|
 |config.company_id_header||Request or response header to use for identifying the Company. [See identifying companies](#identifying-companies).|
-|config.authorization_header_name|authorization|Request header containing a `Bearer` or `Basic` token to extract user id. [See identifying users](#identifying-users).|
+|config.authorization_header_name|authorization|Request header containing a `Bearer` or `Basic` token to extract user id. [See identifying users](#identifying-users). Also, supports a comma separated string. We will check headers in order like `"X-Api-Key,Authorization"`.|
 |config.authorization_user_id_field|sub|Field name in JWT/OpenId token's payload for identifying users. Only applicable if `authorization_header_name` is set and is a `Bearer` token. [See identifying users](#identifying-users).|
 |config.disable_gzip_payload_decompression|false|If set to true, will disable decompressing body in Kong.|
 |config.max_callback_time_spent|2000|Limiter on how much time to send events to Moesif per worker cycle.|
