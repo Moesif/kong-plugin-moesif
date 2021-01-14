@@ -51,16 +51,6 @@ function _M.prepare_request_uri(ngx, conf)
   return ngx.var.scheme .. "://" .. ngx.var.host .. ":" .. ngx.var.server_port .. request_uri
 end
 
--- function to generate uuid
-local random = math.random
-function _M.uuid()
-    local template ='xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
-    return string.gsub(template, '[xy]', function (c)
-        local v = (c == 'x') and random(0, 0xf) or random(8, 0xb)
-        return string.format('%x', v)
-    end)
-end
-
 -- function to parse user id from authorization/user-defined headers
 function _M.parse_authorization_header(token, field)
   
@@ -71,8 +61,14 @@ function _M.parse_authorization_header(token, field)
     local json_decode_ok, decoded_payload = pcall(cjson.decode, payload)
     if json_decode_ok then
       -- Fetch the user_id
-      if type(decoded_payload) == "table" and next(decoded_payload) ~= nil and decoded_payload[field] ~= nil then 
-        return tostring(decoded_payload[field])
+      if type(decoded_payload) == "table" and next(decoded_payload) ~= nil then 
+         -- Convert keys to lowercase
+         for k, v in pairs(decoded_payload) do
+          decoded_payload[string.lower(k)] = v
+        end
+        if decoded_payload[field] ~= nil then
+          return tostring(decoded_payload[field])
+        end
       end
     end
   end
