@@ -42,13 +42,25 @@ If you don't have a `kong.conf`, create one from the default using the following
 
 ### 3. Restart Kong
 
+After the luarock is installed, restart Kong before enabling the plugin
+
+```bash
+kong restart
+```
+
 ### 4. Enable the Moesif plugin
 
 ```bash
 curl -i -X POST --url http://localhost:8001/plugins/ --data "name=moesif" --data "config.application_id=YOUR_APPLICATION_ID";
 ```
 
-If you experience errors, try restarting Kong and then enable the plugin.
+### 5. Restart Kong again
+
+If you don't see any logs in Moesif, you may need to restart Kong again. 
+
+```bash
+kong restart
+```
 
 ## How to use
 
@@ -194,8 +206,23 @@ You can associate API users to companies for tracking account-level usage. This 
 1. Defining `config.company_id_header`, Moesif will use the value present in that header. 
 2. Use the Moesif [update user API](https://www.moesif.com/docs/api#update-a-user) to set a `company_id` for a user. Moesif will associate the API calls automatically.
 
+## Updating config
+
+If you need to update the plugin's config, you must update the existing plugin instance.
+Do not call `POST http://localhost:8001/plugins/` multiple times, otherwise multiple instances of the plugin will be enabled globally, which Kong does not support.
+
+To update an already enabled plugin:
+
+If you want to modify the configuration for an existing plugin:
+	1. Retrieve the plugin using [GET /plugins](https://docs.konghq.com/gateway-oss/0.14.x/admin-api/#list-all-plugins)\
+	2. Use the plugin id from the previous step to update that plugin with your desired configuration using [PATCH /plugins/{plugin id}](https://docs.konghq.com/gateway-oss/0.14.x/admin-api/#update-plugin)
+
+
 ## Troubleshooting
-If you want to access debug logs, or to send to Moesif support, you can enable debug logs via the following:
+
+### How to print debug logs
+
+If you want to print Moesif debug logs, enable debug mode via the following:
 
 ```
 curl -X POST http://kong:8001/apis/{api}/plugins \
@@ -206,9 +233,26 @@ curl -X POST http://kong:8001/apis/{api}/plugins \
 
 You should also set log_level to debug in /etc/kong/kong.conf. 
 
+> If you need technical support from Moesif, attaching debug logs with your email to support can help shorten our resolution time. 
+
+### No events logged to Moesif
+You may have the plugin enabled twice for the same scope (global, service, route, etc), which Kong does not support.
+Make sure you remove all instances of the Moesif plugin and re-enable it only once. To confirm if you are running into duplicate instances, you may see this in your Kong logs:
+
+```
+init.lua:394: insert(): ERROR: duplicate key value violates unique constraint "plugins_cache_key_key"
+Key (cache_key)=(plugins:moesif::::) already exists., client: 127.0.0.1, server: kong_admin, request: "POST /plugins/ HTTP/1.1", host: "localhost:8001"
+```
+
+Another reason plugin may not be running is if you didn't restart Kong after enabling the plugin. Make sure you restart your Kong instance.
+
 ## Tested Version
 
 For tested versions, [see this page](https://docs.konghq.com/hub/moesif/kong-plugin-moesif/) on Kong docs. 
+
+## Examples
+
+- [View example Dockerfile](https://github.com/Moesif/kong-docker-demo).
 
 ## Other integrations
 
