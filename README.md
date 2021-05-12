@@ -78,8 +78,8 @@ upstream service: this refers to your own API/service sitting behind Kong, to wh
 ### Enabling the plugin Globally
 
 A plugin which is not associated to any Service, Route or Consumer (or API, if you are using an older version of Kong) is considered "global",
-and will be run on every request. Read the [Plugin Reference](https://docs.konghq.com/1.0.x/admin-api/#add-plugin) and the
-[Plugin Precedence](https://docs.konghq.com/1.0.x/admin-api/#precedence) sections for more information.
+and will be run on every request. Read the [Plugin Reference](https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#add-plugin) and the
+[Plugin Precedence](https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#precedence) sections for more information.
 
 ```
 curl -X POST http://localhost:8001/plugins \
@@ -96,7 +96,7 @@ and then clicking _API Keys_.
 
 ### Enabling the plugin on a Service
 
-Configure this plugin on a [Service](https://docs.konghq.com/1.0.x/admin-api/#service-object) by making the following request on your Kong server:
+Configure this plugin on a [Service](https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#service-object) by making the following request on your Kong server:
 
 ```
 curl -X POST http://kong:8001/services/{service}/plugins \
@@ -110,7 +110,7 @@ curl -X POST http://kong:8001/services/{service}/plugins \
 
 ### Enabling the plugin on a Route
 
-Configure this plugin on a [Route](https://docs.konghq.com/1.0.x/admin-api/#Route-object) with:
+Configure this plugin on a [Route](https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#route-object) with:
 
 
 ```
@@ -123,7 +123,7 @@ curl -X POST http://kong:8001/routes/{route_id}/plugins \
 
 ### Enabling the plugin on a Consumer
 
-You can use the `http://localhost:8001/plugins` endpoint to enable this plugin on specific [Consumers](https://docs.konghq.com/1.0.x/admin-api/#Consumer-object):
+You can use the `http://localhost:8001/plugins` endpoint to enable this plugin on specific [Consumers](https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#consumer-object):
 
 ```
 curl -X POST http://kong:8001/plugins \
@@ -220,6 +220,22 @@ If you want to modify the configuration for an existing plugin:
 
 ## Troubleshooting
 
+### Duplicate key for `moesif` when enabling plugin
+Kong only allows a single instance of a plugin enabled. This error message is shown when you already have Moesif enabled and trying to install a new instance of it.
+If you're trying to update the config for Moesif, you need to update the existing instance by:
+
+1. Retrieve the plugin using GET /plugins (https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#list-plugins)
+
+```bash
+curl -X GET http://localhost:8001/plugins/
+```
+
+2. Use the plugin id from previous step to update the plugin with desired configuration using PATCH /plugins/{plugin id} (https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#update-plugin)
+
+```bash
+curl -X PATCH http://localhost:8001/plugins/{plugin id} --data "config.application_id=MY_UPDATED_APPLICATION_ID"
+```
+
 ### How to print debug logs
 
 If you want to print Moesif debug logs, enable debug mode via the following:
@@ -231,7 +247,7 @@ curl -X POST http://kong:8001/apis/{api}/plugins \
     --data "config.debug=true"
 ```
 
-You should also set log_level to debug in /etc/kong/kong.conf. 
+You should also set log_level to debug in `/etc/kong/kong.conf`. 
 
 > If you need technical support from Moesif, attaching debug logs with your email to support can help shorten our resolution time. 
 
