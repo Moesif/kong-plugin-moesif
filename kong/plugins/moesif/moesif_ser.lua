@@ -186,8 +186,13 @@ function _M.serialize(ngx, conf)
     end
   end
 
-  if moesif_ctx.company_id_entity == nil and response_headers[conf.company_id_header] ~= nil then
-    moesif_ctx.company_id_entity = tostring(response_headers[conf.company_id_header])
+  -- Fetch the company details
+  if moesif_ctx.company_id_entity == nil then 
+    if request_headers[conf.company_id_header] ~= nil then
+        moesif_ctx.company_id_entity = tostring(request_headers[conf.company_id_header])
+    elseif response_headers[conf.company_id_header] ~= nil then 
+        moesif_ctx.company_id_entity = tostring(response_headers[conf.company_id_header])    
+    end
   end
 
   -- Add blocked_by field to the event to determine the rule by which the event was blocked
