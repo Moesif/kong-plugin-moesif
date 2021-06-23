@@ -72,7 +72,7 @@ local function send_payload(sock, parsed_url, batch_events, conf)
     ngx_log(ngx.DEBUG, "[moesif] failed to send data to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
   else
     sent_success = sent_success + #batch_events
-    ngx_log(ngx.DEBUG, "[moesif] Events sent successfully " , ok)
+    ngx_log(ngx.DEBUG, "[moesif] Events sent successfully " .. "for pid - ".. ngx.worker.pid() .. " ", ok)
   end
 
   local end_send_time = socket.gettime()*1000
@@ -90,7 +90,7 @@ function get_config_internal(conf)
 
   local sock, parsed_url = connect.get_connection("/v1/config", conf, config_socket)
 
-  if type(config_socket) == "table" and next(config_socket) ~= nil then
+  if type(parsed_url) == "table" and next(parsed_url) ~= nil and type(config_socket) == "table" and next(config_socket) ~= nil then
 
     -- Prepare the payload
     local payload = string_format(
@@ -262,7 +262,7 @@ local function send_events_batch(premature)
         if configuration.debug then
           ngx_log(ngx.DEBUG, "[moesif] get connection took time - ".. tostring(end_con_time - start_con_time).." for pid - ".. ngx.worker.pid())
         end
-        if type(send_events_socket) == "table" and next(send_events_socket) ~= nil then
+        if type(parsed_url) == "table" and next(parsed_url) ~= nil and type(send_events_socket) == "table" and next(send_events_socket) ~= nil then
           local counter = 0
           repeat
             local event = table.remove(queue)
@@ -328,7 +328,7 @@ local function send_events_batch(premature)
       else
         has_events = false
         if #queue <= 0 then 
-          ngx_log(ngx.DEBUG, "[moesif] Queue is empty, no events to send ")
+          ngx_log(ngx.DEBUG, "[moesif] Queue is empty, no events to send " .. " for pid - ".. ngx.worker.pid())
         else
           ngx_log(ngx.DEBUG, "[moesif] Max callback time exceeds, skip sending events now ")
         end
@@ -381,32 +381,38 @@ local function log(conf, message, hash_key)
     conf.sample_rate = 100
   end
 
+  local sampling_rate_applied = nil
   if type(conf.user_sample_rate) == "table" and next(conf.user_sample_rate) ~= nil and message["user_id"] ~= nil and conf.user_sample_rate[message["user_id"]] ~= nil then 
     sampling_rate = conf.user_sample_rate[message["user_id"]]
+    sampling_rate_applied = "user_" .. message["user_id"]
   elseif type(conf.company_sample_rate) == "table" and next(conf.company_sample_rate) ~= nil and message["company_id"] ~= nil and conf.company_sample_rate[message["company_id"]] ~= nil then 
     sampling_rate = conf.company_sample_rate[message["company_id"]]
+    sampling_rate_applied = "company_" .. message["company_id"]
   elseif type(conf.regex_config) == "table" and next(conf.regex_config) ~= nil then
     local config_mapping = regex_config_helper.prepare_config_mapping(message)
     local ok, sample_rate, block_rule = pcall(regex_config_helper.fetch_sample_rate_block_request_on_regex_match, conf.regex_config, config_mapping)
     if not ok then
       sampling_rate = conf.sample_rate
+      sampling_rate_applied = "global_when_regex_failed"
     else 
       sampling_rate = sample_rate  
+      sampling_rate_applied = "regex"
     end
   else 
     sampling_rate = conf.sample_rate
+    sampling_rate_applied = "global"
   end
 
   if sampling_rate > random_percentage then
     if conf.debug then 
-      ngx_log(ngx.DEBUG, "[moesif] Event added to the queue")
+      ngx_log(ngx.DEBUG, "[moesif] Event added to the queue" .. " for pid - ".. ngx.worker.pid())
     end
     message["weight"] = (sampling_rate == 0 and 1 or math.floor(100 / sampling_rate))
     rec_event = rec_event + 1
     table.insert(queue_hashes[hash_key], message)
   else
     if conf.debug then 
-      ngx_log(ngx.DEBUG, "[moesif] Skipped Event", " due to sampling percentage: " .. tostring(sampling_rate) .. " and random number: " .. tostring(random_percentage))
+      ngx_log(ngx.DEBUG, "[moesif] Skipped Event", " due to sampling percentage: " .. tostring(sampling_rate) .. " and random number: " .. tostring(random_percentage) .. ' with sampling rate applied for ' .. sampling_rate_applied)
     end
   end
 end

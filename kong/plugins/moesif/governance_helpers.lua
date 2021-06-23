@@ -20,7 +20,7 @@ function _M.get_governance_rules(hash_key, conf)
     -- Fetch governance rules
     local sock, parsed_url = connect.get_connection("/v1/rules", conf, rules_socket)
 
-    if type(rules_socket) == "table" and next(rules_socket) ~= nil then
+    if type(parsed_url) == "table" and next(parsed_url) ~= nil and type(rules_socket) == "table" and next(rules_socket) ~= nil then
 
         -- Prepare the payload
         local payload = string_format("%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\n",
