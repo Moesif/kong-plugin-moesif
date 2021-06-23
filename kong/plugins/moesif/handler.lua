@@ -129,16 +129,24 @@ function log_event(ngx, conf)
 end
 
 function MoesifLogHandler:log(conf)
+  ngx.log(ngx.DEBUG, '[moesif] Log phase called for the new event ' .." for pid - ".. ngx.worker.pid())
   MoesifLogHandler.super.log(self)
 
   -- Hash key of the config application Id
   local hash_key = string.sub(conf.application_id, -10)
   if (queue_hashes[hash_key] == nil) or 
         (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
+    if conf.debug then
+      if (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table") then 
+        ngx.log(ngx.DEBUG, '[moesif] logging new event where the current number of events in the queue is '.. tostring(#queue_hashes[hash_key]) .. " for pid - ".. ngx.worker.pid())
+      else 
+        ngx.log(ngx.DEBUG, '[moesif] logging new event when queue hash is nil ' .." for pid - ".. ngx.worker.pid())
+      end
+    end
     log_event(ngx, conf)
   else
     if conf.debug then
-      ngx.log(ngx.DEBUG, '[moesif] Queue is full, do not log new events ')
+      ngx.log(ngx.DEBUG, '[moesif] Queue is full, do not log new events '.." for pid - ".. ngx.worker.pid())
     end
   end
 end
@@ -157,7 +165,7 @@ function MoesifLogHandler:init_worker()
 end
 
 MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "1.0.2"
+MoesifLogHandler.VERSION = "1.0.3"
 
 -- Plugin version
 plugin_version = MoesifLogHandler.VERSION
