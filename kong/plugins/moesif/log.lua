@@ -203,7 +203,7 @@ function get_config_internal(conf)
         end
       else
         if conf.debug then
-          ngx_log(ngx.DEBUG, "[moesif] raw config response is nil so could not decode it ")
+          ngx_log(ngx.DEBUG, "[moesif] raw config response is nil so could not decode it, the config response is - " .. tostring(config_response))
         end
       end
     else
@@ -292,6 +292,10 @@ local function send_events_batch(premature)
               local start_pay_time = socket.gettime()*1000
                if pcall(send_payload, send_events_socket, parsed_url, batch_events, configuration) then 
                 sent_event = sent_event + #batch_events
+               else
+                if configuration.debug then
+                  ngx_log(ngx.DEBUG, "[moesif] send payload pcall failed while sending events when events in batch is equal to config batch size, " .. " for pid - ".. ngx.worker.pid())
+                end
                end
                local end_pay_time = socket.gettime()*1000
                if configuration.debug then
@@ -302,6 +306,10 @@ local function send_events_batch(premature)
                 local start_pay1_time = socket.gettime()*1000
                 if pcall(send_payload, send_events_socket, parsed_url, batch_events, configuration) then 
                   sent_event = sent_event + #batch_events
+                else
+                  if configuration.debug then
+                    ngx_log(ngx.DEBUG, "[moesif] send payload pcall failed while sending events when events in batch is greather than 0, " .. " for pid - ".. ngx.worker.pid())
+                  end
                 end
                 local end_pay1_time = socket.gettime()*1000
                 if configuration.debug then
