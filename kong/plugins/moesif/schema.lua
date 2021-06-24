@@ -28,5 +28,6 @@ return {
     request_max_body_size_limit = {default = 100000, type = "number"},
     response_max_body_size_limit = {default = 100000, type = "number"},
     request_query_masks = {default = {}, type = "array"},
+    enable_reading_send_event_response = {default = false, type = "boolean"}
   }
 }
