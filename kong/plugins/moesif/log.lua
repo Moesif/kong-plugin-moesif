@@ -69,10 +69,22 @@ local function send_payload(sock, parsed_url, batch_events, conf)
   local ok, err = sock:send(generate_post_payload(parsed_url, access_token, batch_events, application_id, debug) .. "\r\n")
   if not ok then
     sent_failure = sent_failure + #batch_events
-    ngx_log(ngx.DEBUG, "[moesif] failed to send data to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
+    ngx_log(ngx.DEBUG, "[moesif] failed to send " .. tostring(#batch_events) .." events to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
   else
     sent_success = sent_success + #batch_events
-    ngx_log(ngx.DEBUG, "[moesif] Events sent successfully " .. "for pid - ".. ngx.worker.pid() .. " ", ok)
+    ngx_log(ngx.DEBUG, "[moesif] Events sent successfully. Total number of events send - " ..  tostring(#batch_events) .. " in this batch for pid - ".. ngx.worker.pid() .. " ", ok)
+  end
+
+  if conf.enable_reading_send_event_response then 
+    ngx_log(ngx.DEBUG, "[moesif] As reading send event response is enabled, we are reading the response " .. " for pid - ".. ngx.worker.pid())
+    local send_event_response = helper.read_socket_data(sock, conf)
+    if conf.debug then
+      if send_event_response ~= nil then 
+        ngx_log(ngx.DEBUG,"[moesif] send event response - ", send_event_response)
+      else
+        ngx_log(ngx.DEBUG,"[moesif] send event response is nil ")
+      end
+    end
   end
 
   local end_send_time = socket.gettime()*1000
@@ -136,55 +148,62 @@ function get_config_internal(conf)
         end
       end
 
-      local response_body = cjson.decode(config_response:match("(%{.*})"))
-      local config_tag = string.match(config_response, "ETag%s*:%s*(.-)\n")
+      local raw_config_response = config_response:match("(%{.*})")
+      if raw_config_response ~= nil then
+        local response_body = cjson.decode(raw_config_response)
+        local config_tag = string.match(config_response, "ETag%s*:%s*(.-)\n")
 
-      if config_tag ~= nil then
-        conf["ETag"] = config_tag
-      end
-
-      -- Check if the governance rule is updated
-      local response_rules_etag = string.match(config_response, "Tag%s*:%s*(.-)\n")
-        if response_rules_etag ~= nil then
-        conf["rulesETag"] = response_rules_etag
-      end
-
-      -- Hash key of the config application Id
-      local hash_key = string.sub(conf.application_id, -10)
-
-      -- Create empty table for user/company rules
-      if entity_rules[hash_key] == nil then
-        entity_rules[hash_key] = {}
-      end
-
-      -- Get governance rules
-      if (governance_rules_etags[hash_key] == nil or (conf["rulesETag"] ~= governance_rules_etags[hash_key])) then
-        gr_helpers.get_governance_rules(hash_key, conf)
-      end
-
-      if (response_body["user_rules"] ~= nil) then
-        entity_rules[hash_key]["user_rules"] = response_body["user_rules"]
-      end
-        
-      if (response_body["company_rules"] ~= nil) then
-          entity_rules[hash_key]["company_rules"] = response_body["company_rules"]
-      end
-
-      if (conf["sample_rate"] ~= nil) and (response_body ~= nil) then
-        if (response_body["user_sample_rate"] ~= nil) then
-          conf["user_sample_rate"] = response_body["user_sample_rate"]
+        if config_tag ~= nil then
+          conf["ETag"] = config_tag
         end
 
-        if (response_body["company_sample_rate"] ~= nil) then
-          conf["company_sample_rate"] = response_body["company_sample_rate"]
+        -- Check if the governance rule is updated
+        local response_rules_etag = string.match(config_response, "Tag%s*:%s*(.-)\n")
+          if response_rules_etag ~= nil then
+          conf["rulesETag"] = response_rules_etag
         end
 
-        if (response_body["regex_config"] ~= nil) then
-          conf["regex_config"] = response_body["regex_config"]
+        -- Hash key of the config application Id
+        local hash_key = string.sub(conf.application_id, -10)
+
+        -- Create empty table for user/company rules
+        if entity_rules[hash_key] == nil then
+          entity_rules[hash_key] = {}
         end
 
-        if (response_body["sample_rate"] ~= nil) then 
-          conf["sample_rate"] = response_body["sample_rate"]
+        -- Get governance rules
+        if (governance_rules_etags[hash_key] == nil or (conf["rulesETag"] ~= governance_rules_etags[hash_key])) then
+          gr_helpers.get_governance_rules(hash_key, conf)
+        end
+
+        if (response_body["user_rules"] ~= nil) then
+          entity_rules[hash_key]["user_rules"] = response_body["user_rules"]
+        end
+          
+        if (response_body["company_rules"] ~= nil) then
+            entity_rules[hash_key]["company_rules"] = response_body["company_rules"]
+        end
+
+        if (conf["sample_rate"] ~= nil) and (response_body ~= nil) then
+          if (response_body["user_sample_rate"] ~= nil) then
+            conf["user_sample_rate"] = response_body["user_sample_rate"]
+          end
+
+          if (response_body["company_sample_rate"] ~= nil) then
+            conf["company_sample_rate"] = response_body["company_sample_rate"]
+          end
+
+          if (response_body["regex_config"] ~= nil) then
+            conf["regex_config"] = response_body["regex_config"]
+          end
+
+          if (response_body["sample_rate"] ~= nil) then 
+            conf["sample_rate"] = response_body["sample_rate"]
+          end
+        end
+      else
+        if conf.debug then
+          ngx_log(ngx.DEBUG, "[moesif] raw config response is nil so could not decode it ")
         end
       end
     else
