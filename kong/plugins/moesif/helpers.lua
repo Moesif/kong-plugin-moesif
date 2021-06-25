@@ -15,7 +15,7 @@ function _M.read_socket_data(socket, conf)
   end
   response = response or partial
   if not response then return nil, 'timeout' end
-  return response
+  return response, nil
 end
 
 -- Parse host url
