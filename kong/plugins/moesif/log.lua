@@ -81,12 +81,12 @@ local function send_payload(sock, parsed_url, batch_events, conf)
     if conf.debug then
       if send_event_response_error == nil then 
         if send_event_response ~= nil then 
-          ngx_log(ngx.DEBUG,"[moesif] send event response - ", send_event_response)
+          ngx_log(ngx.DEBUG,"[moesif] send event response after sending " .. tostring(#batch_events) ..  " event - ", send_event_response)
         else
           ngx_log(ngx.DEBUG,"[moesif] send event response is nil ")
         end
       else
-        ngx_log(ngx.DEBUG,"[moesif] error while reading response after sending event - ", send_event_response_error)
+        ngx_log(ngx.DEBUG,"[moesif] error while reading response after sending " .. tostring(#batch_events) ..  " event - ", send_event_response_error)
       end
     end
   end
