@@ -77,12 +77,16 @@ local function send_payload(sock, parsed_url, batch_events, conf)
 
   if conf.enable_reading_send_event_response then 
     ngx_log(ngx.DEBUG, "[moesif] As reading send event response is enabled, we are reading the response " .. " for pid - ".. ngx.worker.pid())
-    local send_event_response = helper.read_socket_data(sock, conf)
+    local send_event_response, send_event_response_error = helper.read_socket_data(sock, conf)
     if conf.debug then
-      if send_event_response ~= nil then 
-        ngx_log(ngx.DEBUG,"[moesif] send event response - ", send_event_response)
+      if send_event_response_error == nil then 
+        if send_event_response ~= nil then 
+          ngx_log(ngx.DEBUG,"[moesif] send event response after sending " .. tostring(#batch_events) ..  " event - ", send_event_response)
+        else
+          ngx_log(ngx.DEBUG,"[moesif] send event response is nil ")
+        end
       else
-        ngx_log(ngx.DEBUG,"[moesif] send event response is nil ")
+        ngx_log(ngx.DEBUG,"[moesif] error while reading response after sending " .. tostring(#batch_events) ..  " event - ", send_event_response_error)
       end
     end
   end
@@ -122,92 +126,96 @@ function get_config_internal(conf)
     end
 
     -- Read the response
-    local config_response = helper.read_socket_data(config_socket, conf)
+    local config_response, config_response_error = helper.read_socket_data(config_socket, conf)
 
-    -- Update the application configuration
-    if config_response ~= nil then
+    if config_response_error == nil then 
+      -- Update the application configuration
+      if config_response ~= nil then
 
-      local ok_config, err_config = config_socket:setkeepalive(conf.keepalive)
-      if not ok_config then
-        if conf.debug then
-          ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err_config)
-        end
-        local close_ok, close_err = config_socket:close()
-        if not close_ok then
-            if conf.debug then
-                ngx_log(ngx_log_ERR,"[moesif] Failed to manually close socket connection ", close_err)
-            end
+        local ok_config, err_config = config_socket:setkeepalive(conf.keepalive)
+        if not ok_config then
+          if conf.debug then
+            ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err_config)
+          end
+          local close_ok, close_err = config_socket:close()
+          if not close_ok then
+              if conf.debug then
+                  ngx_log(ngx_log_ERR,"[moesif] Failed to manually close socket connection ", close_err)
+              end
+          else
+              if conf.debug then
+                  ngx_log(ngx.DEBUG,"[moesif] success closing socket connection manually ")
+              end
+          end
         else
-            if conf.debug then
-                ngx_log(ngx.DEBUG,"[moesif] success closing socket connection manually ")
+          if conf.debug then
+            ngx_log(ngx.DEBUG,"[moesif] success keep-alive", ok_config)
+          end
+        end
+
+        local raw_config_response = config_response:match("(%{.*})")
+        if raw_config_response ~= nil then
+          local response_body = cjson.decode(raw_config_response)
+          local config_tag = string.match(config_response, "ETag%s*:%s*(.-)\n")
+
+          if config_tag ~= nil then
+            conf["ETag"] = config_tag
+          end
+
+          -- Check if the governance rule is updated
+          local response_rules_etag = string.match(config_response, "Tag%s*:%s*(.-)\n")
+            if response_rules_etag ~= nil then
+            conf["rulesETag"] = response_rules_etag
+          end
+
+          -- Hash key of the config application Id
+          local hash_key = string.sub(conf.application_id, -10)
+
+          -- Create empty table for user/company rules
+          if entity_rules[hash_key] == nil then
+            entity_rules[hash_key] = {}
+          end
+
+          -- Get governance rules
+          if (governance_rules_etags[hash_key] == nil or (conf["rulesETag"] ~= governance_rules_etags[hash_key])) then
+            gr_helpers.get_governance_rules(hash_key, conf)
+          end
+
+          if (response_body["user_rules"] ~= nil) then
+            entity_rules[hash_key]["user_rules"] = response_body["user_rules"]
+          end
+            
+          if (response_body["company_rules"] ~= nil) then
+              entity_rules[hash_key]["company_rules"] = response_body["company_rules"]
+          end
+
+          if (conf["sample_rate"] ~= nil) and (response_body ~= nil) then
+            if (response_body["user_sample_rate"] ~= nil) then
+              conf["user_sample_rate"] = response_body["user_sample_rate"]
             end
-        end
-      else
-        if conf.debug then
-          ngx_log(ngx.DEBUG,"[moesif] success keep-alive", ok_config)
-        end
-      end
 
-      local raw_config_response = config_response:match("(%{.*})")
-      if raw_config_response ~= nil then
-        local response_body = cjson.decode(raw_config_response)
-        local config_tag = string.match(config_response, "ETag%s*:%s*(.-)\n")
+            if (response_body["company_sample_rate"] ~= nil) then
+              conf["company_sample_rate"] = response_body["company_sample_rate"]
+            end
 
-        if config_tag ~= nil then
-          conf["ETag"] = config_tag
-        end
+            if (response_body["regex_config"] ~= nil) then
+              conf["regex_config"] = response_body["regex_config"]
+            end
 
-        -- Check if the governance rule is updated
-        local response_rules_etag = string.match(config_response, "Tag%s*:%s*(.-)\n")
-          if response_rules_etag ~= nil then
-          conf["rulesETag"] = response_rules_etag
-        end
-
-        -- Hash key of the config application Id
-        local hash_key = string.sub(conf.application_id, -10)
-
-        -- Create empty table for user/company rules
-        if entity_rules[hash_key] == nil then
-          entity_rules[hash_key] = {}
-        end
-
-        -- Get governance rules
-        if (governance_rules_etags[hash_key] == nil or (conf["rulesETag"] ~= governance_rules_etags[hash_key])) then
-          gr_helpers.get_governance_rules(hash_key, conf)
-        end
-
-        if (response_body["user_rules"] ~= nil) then
-          entity_rules[hash_key]["user_rules"] = response_body["user_rules"]
-        end
-          
-        if (response_body["company_rules"] ~= nil) then
-            entity_rules[hash_key]["company_rules"] = response_body["company_rules"]
-        end
-
-        if (conf["sample_rate"] ~= nil) and (response_body ~= nil) then
-          if (response_body["user_sample_rate"] ~= nil) then
-            conf["user_sample_rate"] = response_body["user_sample_rate"]
+            if (response_body["sample_rate"] ~= nil) then 
+              conf["sample_rate"] = response_body["sample_rate"]
+            end
           end
-
-          if (response_body["company_sample_rate"] ~= nil) then
-            conf["company_sample_rate"] = response_body["company_sample_rate"]
-          end
-
-          if (response_body["regex_config"] ~= nil) then
-            conf["regex_config"] = response_body["regex_config"]
-          end
-
-          if (response_body["sample_rate"] ~= nil) then 
-            conf["sample_rate"] = response_body["sample_rate"]
+        else
+          if conf.debug then
+            ngx_log(ngx.DEBUG, "[moesif] raw config response is nil so could not decode it, the config response is - " .. tostring(config_response))
           end
         end
       else
-        if conf.debug then
-          ngx_log(ngx.DEBUG, "[moesif] raw config response is nil so could not decode it, the config response is - " .. tostring(config_response))
-        end
+        ngx_log(ngx.DEBUG, "[moesif] application config is nil ")
       end
-    else
-      ngx_log(ngx.DEBUG, "[moesif] application config is nil ")
+    else 
+      ngx_log(ngx.DEBUG,"[moesif] error while reading response after fetching app config - ", config_response_error)
     end
     return config_response
   end
