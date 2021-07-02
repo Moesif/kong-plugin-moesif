@@ -62,37 +62,45 @@ local function send_payload(sock, parsed_url, batch_events, conf)
   local application_id = conf.application_id
   local access_token = conf.access_token
   local debug = conf.debug
+  local eventsSentSuccessfully = false
 
   local start_send_time = socket.gettime()*1000
-
   sock:settimeout(conf.send_timeout)
   local ok, err = sock:send(generate_post_payload(parsed_url, access_token, batch_events, application_id, debug) .. "\r\n")
   if not ok then
     sent_failure = sent_failure + #batch_events
     ngx_log(ngx.DEBUG, "[moesif] failed to send " .. tostring(#batch_events) .." events to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
   else
+    eventsSentSuccessfully = true
     sent_success = sent_success + #batch_events
     ngx_log(ngx.DEBUG, "[moesif] Events sent successfully. Total number of events send - " ..  tostring(#batch_events) .. " in this batch for pid - ".. ngx.worker.pid() .. " ", ok)
   end
 
-  if conf.enable_reading_send_event_response then 
+  if conf.enable_reading_send_event_response then
     ngx_log(ngx.DEBUG, "[moesif] As reading send event response is enabled, we are reading the response " .. " for pid - ".. ngx.worker.pid())
     local send_event_response, send_event_response_error = helper.read_socket_data(sock, conf)
     if conf.debug then
-      if send_event_response_error == nil then 
-        if send_event_response ~= nil then 
+      if send_event_response_error == nil then
+        if send_event_response ~= nil then
+          if string.match(send_event_response, "200") or string.match(send_event_response, "201") then
+            eventsSentSuccessfully = true
+          end
           ngx_log(ngx.DEBUG,"[moesif] send event response after sending " .. tostring(#batch_events) ..  " event - ", send_event_response)
         else
+          eventsSentSuccessfully = false
           ngx_log(ngx.DEBUG,"[moesif] send event response is nil ")
         end
       else
+        eventsSentSuccessfully = false
         ngx_log(ngx.DEBUG,"[moesif] error while reading response after sending " .. tostring(#batch_events) ..  " event - ", send_event_response_error)
       end
     end
   end
-
   local end_send_time = socket.gettime()*1000
   ngx_log(ngx.DEBUG, "[moesif] send payload took time - ".. tostring(end_send_time - start_send_time).." for pid - ".. ngx.worker.pid())
+  if eventsSentSuccessfully ~= true then
+    error("failed to send events successfully")
+  end
 end
 
 
@@ -265,7 +273,7 @@ local function send_events_batch(premature)
   end
 
   local send_events_socket = ngx.socket.tcp()
-  local global_socket_timeout = 1000
+  local global_socket_timeout = 100000
   send_events_socket:settimeout(global_socket_timeout)
   -- Temp hash key for debug 
   local temp_hash_key
@@ -277,7 +285,6 @@ local function send_events_batch(premature)
         ngx_log(ngx.DEBUG, "[moesif] Skipping sending events to Moesif, since no configuration is available yet")
         return
       end
-
       -- Temp hash key
       temp_hash_key = key
       if #queue > 0 and ((socket.gettime()*1000 - start_time) <= math.min(configuration.max_callback_time_spent, timer_wakeup_seconds * 500)) then
@@ -304,6 +311,12 @@ local function send_events_batch(premature)
                 if configuration.debug then
                   ngx_log(ngx.DEBUG, "[moesif] send payload pcall failed while sending events when events in batch is equal to config batch size, " .. " for pid - ".. ngx.worker.pid())
                 end
+                -- insert events back to actual queue and return, we ll send events again in next cycle
+                repeat
+                 local event = table.remove(batch_events)
+                 table.insert(queue, event)
+                until next(batch_events) == nil
+                return
                end
                local end_pay_time = socket.gettime()*1000
                if configuration.debug then
@@ -312,12 +325,18 @@ local function send_events_batch(premature)
                batch_events = {}
             else if(#queue ==0 and #batch_events > 0) then
                 local start_pay1_time = socket.gettime()*1000
-                if pcall(send_payload, send_events_socket, parsed_url, batch_events, configuration) then 
+                if pcall(send_payload, send_events_socket, parsed_url, batch_events, configuration) then
                   sent_event = sent_event + #batch_events
                 else
                   if configuration.debug then
                     ngx_log(ngx.DEBUG, "[moesif] send payload pcall failed while sending events when events in batch is greather than 0, " .. " for pid - ".. ngx.worker.pid())
                   end
+                  -- insert events back to actual queue and return, we ll send events again in next cycle
+                  repeat
+                    local event = table.remove(batch_events)
+                    table.insert(queue, event)
+                  until next(batch_events) == nil
+                  return
                 end
                 local end_pay1_time = socket.gettime()*1000
                 if configuration.debug then
