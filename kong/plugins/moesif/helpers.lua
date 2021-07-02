@@ -43,10 +43,13 @@ end
 function _M.prepare_request_uri(ngx, conf)
 
   local request_uri = ngx.var.request_uri
-  if next(conf.request_query_masks) ~= nil then 
+  if next(conf.request_query_masks) ~= nil and request_uri ~= nil then
     for _, value in ipairs(conf.request_query_masks) do
       request_uri = request_uri:gsub(value.."=[^&]*([^&])", value.."=*****", 1)
     end
+  end
+  if request_uri == nil then
+    request_uri = "/"
   end
   return ngx.var.scheme .. "://" .. ngx.var.host .. ":" .. ngx.var.server_port .. request_uri
 end
