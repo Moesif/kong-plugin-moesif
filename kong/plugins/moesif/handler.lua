@@ -2,7 +2,6 @@ local serializer = require "kong.plugins.moesif.moesif_ser"
 local governance = require "kong.plugins.moesif.moesif_gov"
 local BasePlugin = require "kong.plugins.base_plugin"
 local log = require "kong.plugins.moesif.log"
-local transaction_id = nil
 local req_set_header = ngx.req.set_header
 local string_find = string.find
 local req_read_body = ngx.req.read_body
@@ -37,15 +36,15 @@ function MoesifLogHandler:access(conf)
     if headers["X-Moesif-Transaction-Id"] ~= nil then	
       local req_trans_id = headers["X-Moesif-Transaction-Id"]	
       if req_trans_id ~= nil and req_trans_id:gsub("%s+", "") ~= "" then	
-        transaction_id = req_trans_id	
+        ngx.ctx.transaction_id = req_trans_id	
       else	
-        transaction_id = uuid()	
+        ngx.ctx.transaction_id = uuid()	
       end	
     else	
-      transaction_id = uuid()	
+      ngx.ctx.transaction_id = uuid()	
     end	
   -- Add Transaction Id to the request header	
-  req_set_header("X-Moesif-Transaction-Id", transaction_id)	
+  req_set_header("X-Moesif-Transaction-Id", ngx.ctx.transaction_id)	
   end
 
 
@@ -155,7 +154,7 @@ function MoesifLogHandler:header_filter(conf)
 MoesifLogHandler.super.header_filter(self)
 
     if not conf.disable_transaction_id then
-      ngx.header["X-Moesif-Transaction-Id"] = transaction_id
+      ngx.header["X-Moesif-Transaction-Id"] = ngx.ctx.transaction_id
     end
 end
 
@@ -165,7 +164,7 @@ function MoesifLogHandler:init_worker()
 end
 
 MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "1.0.6"
+MoesifLogHandler.VERSION = "1.0.7"
 
 -- Plugin version
 plugin_version = MoesifLogHandler.VERSION
