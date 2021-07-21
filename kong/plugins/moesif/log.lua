@@ -84,6 +84,8 @@ local function send_payload(sock, parsed_url, batch_events, conf)
         if send_event_response ~= nil then
           if string.match(send_event_response, "200") or string.match(send_event_response, "201") then
             eventsSentSuccessfully = true
+          else
+            eventsSentSuccessfully = false
           end
           ngx_log(ngx.DEBUG,"[moesif] send event response after sending " .. tostring(#batch_events) ..  " event - ", send_event_response)
         else
@@ -273,7 +275,7 @@ local function send_events_batch(premature)
   end
 
   local send_events_socket = ngx.socket.tcp()
-  local global_socket_timeout = 100000
+  local global_socket_timeout = 10000
   send_events_socket:settimeout(global_socket_timeout)
   -- Temp hash key for debug 
   local temp_hash_key
