@@ -114,7 +114,7 @@ function get_config_internal(conf)
   local config_socket = ngx.socket.tcp()
   config_socket:settimeout(conf.connect_timeout)
 
-  local sock, parsed_url = connect.get_connection("/v1/config", conf, config_socket)
+  local sock, parsed_url = connect.get_connection("https://api.moesif.net", "/v1/config", conf, config_socket)
 
   if type(parsed_url) == "table" and next(parsed_url) ~= nil and type(config_socket) == "table" and next(config_socket) ~= nil then
 
@@ -293,7 +293,7 @@ local function send_events_batch(premature)
         ngx_log(ngx.DEBUG, "[moesif] Sending events to Moesif")
         -- Getting the configuration for this particular key
         local start_con_time = socket.gettime()*1000
-        local sock, parsed_url = connect.get_connection("/v1/events/batch", configuration, send_events_socket)
+        local sock, parsed_url = connect.get_connection(configuration.api_endpoint, "/v1/events/batch", configuration, send_events_socket)
         local end_con_time = socket.gettime()*1000
         if configuration.debug then
           ngx_log(ngx.DEBUG, "[moesif] get connection took time - ".. tostring(end_con_time - start_con_time).." for pid - ".. ngx.worker.pid())
