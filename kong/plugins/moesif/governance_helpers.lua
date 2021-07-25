@@ -18,7 +18,7 @@ function _M.get_governance_rules(hash_key, conf)
     rules_socket:settimeout(conf.connect_timeout)
   
     -- Fetch governance rules
-    local sock, parsed_url = connect.get_connection("/v1/rules", conf, rules_socket)
+    local sock, parsed_url = connect.get_connection("https://api.moesif.net", "/v1/rules", conf, rules_socket)
 
     if type(parsed_url) == "table" and next(parsed_url) ~= nil and type(rules_socket) == "table" and next(rules_socket) ~= nil then
 

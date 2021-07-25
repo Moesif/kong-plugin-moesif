@@ -7,12 +7,13 @@ local session
 local sessionerr
 
 -- Create new connection
--- @param `url_path`  api endpoint
+-- @param `api_endpoint` The base API
+-- @param `url_path`  The path like /events
 -- @param `conf`  Configuration table, holds http endpoint details
 -- @return `sock` Socket object
 -- @return `parsed_url` a table with host details like domain name, port, path etc
-function _M.get_connection(url_path, conf, sock)
-  local parsed_url = helper.parse_url(conf.api_endpoint..url_path)
+function _M.get_connection(api_endpoint, url_path, conf, sock)
+  local parsed_url = helper.parse_url(api_endpoint..url_path)
   local host = parsed_url.host
   local port = tonumber(parsed_url.port)
 
