@@ -179,6 +179,7 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 |config.company_id_header||Request or response header to use for identifying the Company. [See identifying companies](#identifying-companies).|
 |config.authorization_header_name|authorization|Request header containing a `Bearer` or `Basic` token to extract user id. [See identifying users](#identifying-users). Also, supports a comma separated string. We will check headers in order like `"X-Api-Key,Authorization"`.|
 |config.authorization_user_id_field|sub|Field name in JWT/OpenId token's payload for identifying users. Only applicable if `authorization_header_name` is set and is a `Bearer` token. [See identifying users](#identifying-users).|
+|config.authorization_company_id_field|''|Field name in JWT/OpenId token's payload for identifying companies. Only applicable if `authorization_header_name` is set and is a `Bearer` token. [See identifying companies](#identifying-companies).|
 |config.disable_gzip_payload_decompression|false|If set to true, will disable decompressing body in Kong.|
 |config.max_callback_time_spent|2000|Limiter on how much time to send events to Moesif per worker cycle.|
 |config.request_max_body_size_limit|100000|Maximum request body size in bytes to log.|
@@ -205,6 +206,8 @@ For advanced configurations, you can define a custom header containing the user 
 You can associate API users to companies for tracking account-level usage. This can be done either:
 1. Defining `config.company_id_header`, Moesif will use the value present in that header. 
 2. Use the Moesif [update user API](https://www.moesif.com/docs/api#update-a-user) to set a `company_id` for a user. Moesif will associate the API calls automatically.
+3. Else if an authorization token is present in `config.authorization_header_name`, parse the company id from the token as follows:
+   * If header contains `Bearer`, base64 decode the string and use the value defined by `config.authorization_company_id_field` (by default is ``).
 
 ## Updating config
 
