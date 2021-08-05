@@ -55,7 +55,9 @@ function _M.prepare_request_uri(ngx, conf)
 end
 
 -- function to parse user id from authorization/user-defined headers
-function _M.parse_authorization_header(token, field)
+function _M.parse_authorization_header(token, user_id, company_id)
+  local user_id_entity = nil
+  local company_id_entity = nil
   
   -- Decode the payload
   local base64_decode_ok, payload = pcall(base64.decode, token)
@@ -69,13 +71,19 @@ function _M.parse_authorization_header(token, field)
          for k, v in pairs(decoded_payload) do
           decoded_payload[string.lower(k)] = v
         end
-        if decoded_payload[field] ~= nil then
-          return tostring(decoded_payload[field])
+        -- Fetch user from the token
+        if decoded_payload[user_id] ~= nil then
+          user_id_entity = tostring(decoded_payload[user_id])
         end
+        -- Fetch company from the token
+        if decoded_payload[company_id] ~= nil then
+          company_id_entity = tostring(decoded_payload[company_id])
+        end
+        return user_id_entity, company_id_entity
       end
     end
   end
-  return nil
+  return user_id_entity, company_id_entity
 end
 
 return _M

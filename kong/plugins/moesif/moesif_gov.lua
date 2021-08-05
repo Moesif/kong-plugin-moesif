@@ -232,6 +232,15 @@ function block_request_based_on_entity_governance_rule(hash_key, conf, rule_name
     end
 end
 
+-- Function to split token by dot(.)
+function split_token(token)
+    local split_token = {}
+    for line in token:gsub("%f[.]%.%f[^.]", "\0"):gmatch"%Z+" do 
+        table.insert(split_token, line)
+    end
+    return split_token
+end
+
 function _M.govern_request(ngx, conf, start_access_phase_time)
 
     -- Hash key of the config application Id
@@ -244,6 +253,15 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
     local request_ip_address = client_ip.get_client_ip(request_headers)
     local request_config_mapping = regex_config_helper.prepare_config_mapping(regex_config_helper.prepare_request_config_mapping(request_verb, request_uri, request_ip_address))
 
+    -- company id
+    -- Fetch the company details
+    if request_headers[conf.company_id_header] ~= nil then
+        company_id_entity = tostring(request_headers[conf.company_id_header])
+    else 
+        company_id_entity = nil
+    end
+    ngx.ctx.moesif["company_id_entity"] = company_id_entity
+
     -- Fetch the user details
     if request_headers[conf.user_id_header] ~= nil then
         user_id_entity = tostring(request_headers[conf.user_id_header])
@@ -253,7 +271,7 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
         user_id_entity = tostring(request_headers["x-consumer-username"])
     elseif request_headers["x-consumer-id"] ~= nil then
         user_id_entity = tostring(request_headers["x-consumer-id"])
-    elseif conf.authorization_header_name ~= nil and conf.authorization_user_id_field ~= nil then
+    elseif conf.authorization_header_name ~= nil and (conf.authorization_user_id_field ~= nil or (ngx.ctx.moesif["company_id_entity"] == nil and conf.authorization_company_id_field ~= "" and conf.authorization_company_id_field ~= nil)) then
 
         -- Split authorization header name by comma
         local auth_header_names = split(string.lower(conf.authorization_header_name), ",") 
@@ -271,7 +289,8 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
               break
             end
         end
-        local field = conf.authorization_user_id_field
+        local user_id_field = conf.authorization_user_id_field
+        local company_id_field = conf.authorization_company_id_field
 
         if token ~= nil then 
             -- Check if token is of type Bearer
@@ -280,15 +299,12 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
                 token = token:gsub("Bearer", "")
                 
                 -- Split the bearer token by dot(.)
-                local split_token = {}
-                for line in token:gsub("%f[.]%.%f[^.]", "\0"):gmatch"%Z+" do 
-                    table.insert(split_token, line)
-                end
+                local split_token = split_token(token)
                 
                 -- Check if payload is not nil
                 if split_token[2] ~= nil then 
                     -- Parse and set user Id
-                    user_id_entity = helper.parse_authorization_header(split_token[2], field)
+                    user_id_entity, company_id_entity = helper.parse_authorization_header(split_token[2], user_id_field, company_id_field)
                 else
                     user_id_entity = nil  
                 end 
@@ -309,8 +325,17 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
                 end 
             -- Check if token is of user-defined custom type
             else
-                -- Parse and set the user_id
-                user_id_entity = helper.parse_authorization_header(token, field)
+                -- Split the bearer token by dot(.)
+                local split_token = split_token(token)
+                                
+                -- Check if payload is not nil
+                if split_token[2] ~= nil then 
+                    -- Parse and set user Id
+                    user_id_entity, company_id_entity = helper.parse_authorization_header(split_token[2], user_id_field, company_id_field)
+                else
+                    -- Parse and set the user_id
+                    user_id_entity, company_id_entity = helper.parse_authorization_header(token, user_id_field, company_id_field)
+                end 
             end
         else
             user_id_entity = nil
@@ -319,16 +344,14 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
         user_id_entity = nil
     end
 
-    -- Fetch the company details
-    if request_headers[conf.company_id_header] ~= nil then
-        company_id_entity = tostring(request_headers[conf.company_id_header])
-    else 
-        company_id_entity = nil
-    end
+
 
     -- Set entity in conf to use downstream
     ngx.ctx.moesif["user_id_entity"] = user_id_entity
-    ngx.ctx.moesif["company_id_entity"] = company_id_entity
+    if ngx.ctx.moesif["company_id_entity"] == nil then 
+        ngx.ctx.moesif["company_id_entity"] = company_id_entity
+    end
+  
 
     if governance_rules_hashes[hash_key] ~= nil and type(governance_rules_hashes[hash_key]) == "table" and next(governance_rules_hashes[hash_key]) ~= nil then
         -- Check if need to block request based on user governance rule

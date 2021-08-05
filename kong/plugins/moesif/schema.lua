@@ -23,6 +23,7 @@ return {
     user_id_header = {default = "", type = "string"},
     authorization_header_name = {default = "authorization", type = "string"},
     authorization_user_id_field = {default = "sub", type = "string"},
+    authorization_company_id_field = {default = "", type = "string"},
     company_id_header = {default = "", type = "string"},
     max_callback_time_spent = {default = 750, type = "number"},
     request_max_body_size_limit = {default = 100000, type = "number"},
