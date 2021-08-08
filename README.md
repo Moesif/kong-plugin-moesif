@@ -188,6 +188,31 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 |config.event_queue_size|5000|Maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skips adding new to event to queue to prevent memory overflow.|
 |config.debug|false|If set to true, prints internal log messages for debugging integration issues.|
 
+## Updating config
+
+If you need to update a configuration parameter, you must fetch and update the existing plugin instance.
+Be careful not to call `POST http://localhost:8001/plugins/` again as this will create a duplicate instance of a plugin, which Kong does not support.
+
+To update plugin config:
+
+### 1. Retrieve the plugin instance id
+
+Using the [GET /plugins](https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#list-plugins), get the current instance id of the Moesif plugin.
+
+```bash		
+curl -X GET http://localhost:8001/plugins/
+```
+	
+### 2. Update the plugin instance
+
+Use the plugin id from the previous step, update the plugin with desired configuration using [PATCH /plugins/{plugin id}](https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#update-plugin)
+		
+```bash
+curl -X PATCH http://localhost:8001/plugins/{plugin id} 
+    --data “config.application_id=YOUR_APPLICATION_ID” 
+    --data “config.debug=true 
+```
+
 ##  Identifying users
 
 This plugin will automatically identify API users so you can associate API traffic to web traffic and create cross-platform funnel reports of your customer journey.
@@ -209,35 +234,11 @@ You can associate API users to companies for tracking account-level usage. This 
 3. Else if an authorization token is present in `config.authorization_header_name`, parse the company id from the token as follows:
    * If header contains `Bearer`, base64 decode the string and use the value defined by `config.authorization_company_id_field` (by default is ``).
 
-## Updating config
-
-If you need to update the plugin's config, you must update the existing plugin instance.
-Do not call `POST http://localhost:8001/plugins/` multiple times, otherwise multiple instances of the plugin will be enabled globally, which Kong does not support.
-
-To update an already enabled plugin:
-
-If you want to modify the configuration for an existing plugin:
-	1. Retrieve the plugin using [GET /plugins](https://docs.konghq.com/gateway-oss/0.14.x/admin-api/#list-all-plugins)\
-	2. Use the plugin id from the previous step to update that plugin with your desired configuration using [PATCH /plugins/{plugin id}](https://docs.konghq.com/gateway-oss/0.14.x/admin-api/#update-plugin)
-
-
 ## Troubleshooting
 
 ### Duplicate key for `moesif` when enabling plugin
 Kong only allows a single instance of a plugin enabled. This error message is shown when you already have Moesif enabled and trying to install a new instance of it.
-If you're trying to update the config for Moesif, you need to update the existing instance by:
-
-1. Retrieve the plugin using GET /plugins (https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#list-plugins)
-
-```bash
-curl -X GET http://localhost:8001/plugins/
-```
-
-2. Use the plugin id from previous step to update the plugin with desired configuration using PATCH /plugins/{plugin id} (https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#update-plugin)
-
-```bash
-curl -X PATCH http://localhost:8001/plugins/{plugin id} --data "config.application_id=MY_UPDATED_APPLICATION_ID"
-```
+If you're trying to update the config for Moesif, you need to update the existing instance by following [these instructions.](#updating-config)
 
 ### How to print debug logs
 
