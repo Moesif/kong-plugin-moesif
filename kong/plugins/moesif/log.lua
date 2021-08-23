@@ -431,44 +431,47 @@ end
 local function log(conf, message, hash_key)
   -- Sampling Events
   local random_percentage = math.random() * 100
-  local sampling_rate = 100
+  local user_sampling_rate = 100
+  local company_sampling_rate = 100
+  local regex_sampling_rate = 100
 
   if conf.sample_rate == nil then
     conf.sample_rate = 100
   end
 
-  local sampling_rate_applied = nil
-  if type(conf.user_sample_rate) == "table" and next(conf.user_sample_rate) ~= nil and message["user_id"] ~= nil and conf.user_sample_rate[message["user_id"]] ~= nil then 
-    sampling_rate = conf.user_sample_rate[message["user_id"]]
-    sampling_rate_applied = "user_" .. message["user_id"]
-  elseif type(conf.company_sample_rate) == "table" and next(conf.company_sample_rate) ~= nil and message["company_id"] ~= nil and conf.company_sample_rate[message["company_id"]] ~= nil then 
-    sampling_rate = conf.company_sample_rate[message["company_id"]]
-    sampling_rate_applied = "company_" .. message["company_id"]
-  elseif type(conf.regex_config) == "table" and next(conf.regex_config) ~= nil then
-    local config_mapping = regex_config_helper.prepare_config_mapping(message)
-    local ok, sample_rate, block_rule = pcall(regex_config_helper.fetch_sample_rate_block_request_on_regex_match, conf.regex_config, config_mapping)
-    if not ok then
-      sampling_rate = conf.sample_rate
-      sampling_rate_applied = "global_when_regex_failed"
-    else 
-      sampling_rate = sample_rate  
-      sampling_rate_applied = "regex"
-    end
-  else 
-    sampling_rate = conf.sample_rate
-    sampling_rate_applied = "global"
+  -- calculate user level sample rate
+  if type(conf.user_sample_rate) == "table" and next(conf.user_sample_rate) ~= nil and message["user_id"] ~= nil and conf.user_sample_rate[message["user_id"]] ~= nil then
+    user_sampling_rate = conf.user_sample_rate[message["user_id"]]
   end
 
+  -- calculate company level sample rate
+  if type(conf.company_sample_rate) == "table" and next(conf.company_sample_rate) ~= nil and message["company_id"] ~= nil and conf.company_sample_rate[message["company_id"]] ~= nil then
+    company_sampling_rate = conf.company_sample_rate[message["company_id"]]
+  end
+
+  -- calculate regex sample rate
+  if type(conf.regex_config) == "table" and next(conf.regex_config) ~= nil then
+    local config_mapping = regex_config_helper.prepare_config_mapping(message)
+    local ok, sample_rate, block_rule = pcall(regex_config_helper.fetch_sample_rate_block_request_on_regex_match, conf.regex_config, config_mapping)
+    if ok then
+      regex_sampling_rate = sample_rate
+    end
+  end
+
+  -- sampling rate will be the minimum of all sample rates
+  local sampling_rate = math.min(user_sampling_rate, company_sampling_rate, regex_sampling_rate, conf.sample_rate)
+
   if sampling_rate > random_percentage then
-    if conf.debug then 
+    if conf.debug then
       ngx_log(ngx.DEBUG, "[moesif] Event added to the queue" .. " for pid - ".. ngx.worker.pid())
     end
     message["weight"] = (sampling_rate == 0 and 1 or math.floor(100 / sampling_rate))
     rec_event = rec_event + 1
     table.insert(queue_hashes[hash_key], message)
   else
-    if conf.debug then 
-      ngx_log(ngx.DEBUG, "[moesif] Skipped Event", " due to sampling percentage: " .. tostring(sampling_rate) .. " and random number: " .. tostring(random_percentage) .. ' with sampling rate applied for ' .. sampling_rate_applied)
+    if conf.debug then
+      ngx_log(ngx.DEBUG, "[moesif] Skipped Event", " due to sampling percentage: " .. tostring(sampling_rate) .. " and random number: " .. tostring(random_percentage) .. "user:company:regex sampling rate are: " .. tostring(user_sampling_rate) .. ":"
+      .. tostring(company_sampling_rate) .. ":" .. tostring(regex_sampling_rate))
     end
   end
 end
