@@ -431,9 +431,9 @@ end
 local function log(conf, message, hash_key)
   -- Sampling Events
   local random_percentage = math.random() * 100
-  local user_sampling_rate = 100
-  local company_sampling_rate = 100
-  local regex_sampling_rate = 100
+  local user_sampling_rate = nil
+  local company_sampling_rate = nil
+  local regex_sampling_rate = nil
   local sampling_rate = 100
 
   if conf.sample_rate == nil then
@@ -460,8 +460,8 @@ local function log(conf, message, hash_key)
   end
 
   -- sampling rate will be the minimum of all specific sample rates if any of them are defined
-  if user_sampling_rate < 100 or company_sampling_rate < 100 or regex_sampling_rate < 100 then
-    sampling_rate = math.min(user_sampling_rate, company_sampling_rate, regex_sampling_rate)
+  if user_sampling_rate ~= nil or company_sampling_rate  ~= nil or regex_sampling_rate  ~= nil then
+    sampling_rate = math.min((user_sampling_rate or 100), (company_sampling_rate or 100), (regex_sampling_rate or 100))
   else
     -- no specific sample rates defined, use the global sampling rate
     sampling_rate = conf.sample_rate
