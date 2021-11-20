@@ -14,7 +14,7 @@ This plugin supports automatic analysis of REST, GraphQL, and other APIs.
 
 ## How to install
 
-> If you are using Kong's [Kubernetes Ingress Controller](https://github.com/Kong/kubernetes-ingress-controller), the installation is slightly different. We recommend reviewing this [blog article](https://www.moesif.com/blog/technical/kong/kubernetes/How-to-Add-Moesif-API-Analytics-and-Monitoring-to-Kong-Ingress-Controller/).
+> If you are using Kong's [Kubernetes Ingress Controller](https://github.com/Kong/kubernetes-ingress-controller), the installation is slightly different. Review the [docs for Kubernetes Ingress](https://www.moesif.com/docs/server-integration/kong-ingress-controller/).
 
 The .rock file is a self contained package that can be installed locally or from a remote server.
 
