@@ -210,7 +210,7 @@ Use the plugin id from the previous step, update the plugin with desired configu
 ```bash
 curl -X PATCH http://localhost:8001/plugins/{plugin id} 
     --data “config.application_id=YOUR_APPLICATION_ID” 
-    --data “config.debug=true 
+    --data “config.debug=true"
 ```
 
 ##  Identifying users
@@ -242,13 +242,29 @@ If you're trying to update the config for Moesif, you need to update the existin
 
 ### How to print debug logs
 
-If you want to print Moesif debug logs, enable debug mode via the following:
+If you want to print Moesif debug logs, you can set `--data “config.debug=true"` when you enable the plugin.
 
+If you already have Moesif installed, you must update the configuration of the existing instance and not install Moesif twice.
+Otherwise, you will have multiple instances of a plugin installed, which Kong does not support.
+
+To update existing plugin with debug option:
+
+### 1. Retrieve the plugin instance id
+
+Using the [GET /plugins](https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#list-plugins), get the current instance id of the running Moesif plugin.
+
+```bash		
+curl -X GET http://localhost:8001/plugins/
 ```
-curl -X POST http://kong:8001/apis/{api}/plugins \
-    --data "name=moesif"  \
-    --data "config.application_id=MY_MOESIF_APPLICATION_ID"
-    --data "config.debug=true"
+	
+### 2. Update the plugin instance
+
+Use the plugin id from the previous step, update the plugin with your new configuration using [PATCH /plugins/{plugin id}](https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#update-plugin). In this case, ensure `--data “config.debug=true"`
+		
+```bash
+curl -X PATCH http://localhost:8001/plugins/{plugin id} 
+    --data “config.application_id=YOUR_APPLICATION_ID” 
+    --data “config.debug=true"
 ```
 
 You should also set log_level to debug in `/etc/kong/kong.conf`. 
