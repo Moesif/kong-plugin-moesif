@@ -26,31 +26,47 @@ local timer_wakeup_seconds = 1.5
 local gr_helpers = require "kong.plugins.moesif.governance_helpers"
 entity_rules = {}
 
+-- Generates http payload without compression
+-- @param `parsed_url` contains the host details
+-- @param `body`  Message to be logged
+-- @return `payload` http payload
+local function generate_payload_without_compression(parsed_url, application_id, body)
+  local payload = nil
+  payload = string_format(
+    "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
+    "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, #body, body)
+  return payload
+end
+
 -- Generates http payload .
 -- @param `method` http method to be used to send data
 -- @param `parsed_url` contains the host details
 -- @param `message`  Message to be logged
 -- @return `payload` http payload
-local function generate_post_payload(parsed_url, access_token, message, application_id, debug)
+local function generate_post_payload(conf, parsed_url, access_token, message, application_id, debug)
   local payload = nil
   local body = cjson.encode(message)
-  local ok, compressed_body = pcall(compress["CompressDeflate"], compress, body)
-  if not ok then
-    if debug then 
-      ngx_log(ngx_log_ERR, "[moesif] failed to compress body: ", compressed_body)
+  if not conf.disable_moesif_payload_compression then 
+    local ok, compressed_body = pcall(compress["CompressDeflate"], compress, body)
+    if not ok then
+      if debug then 
+        ngx_log(ngx_log_ERR, "[moesif] failed to compress body: ", compressed_body)
+      end
+      return generate_payload_without_compression(parsed_url, application_id, body)
+    else
+      if debug then 
+        ngx_log(ngx.DEBUG, " [moesif]  ", "successfully compressed body")
+      end
+      payload = string_format(
+        "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Encoding: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
+        "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, "deflate", #compressed_body, compressed_body)
+      return payload
     end
-    payload = string_format(
-      "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
-      "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, #body, body)
-    return payload
   else
     if debug then 
-      ngx_log(ngx.DEBUG, " [moesif]  ", "successfully compressed body")
+      ngx_log(ngx_log_ERR, "[moesif] No need to decompress body: ", body)
     end
-    payload = string_format(
-      "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Encoding: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
-      "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, "deflate", #compressed_body, compressed_body)
-    return payload
+    return generate_payload_without_compression(parsed_url, application_id, body)
   end
 end
 
@@ -66,7 +82,7 @@ local function send_payload(sock, parsed_url, batch_events, conf)
 
   local start_send_time = socket.gettime()*1000
   sock:settimeout(conf.send_timeout)
-  local ok, err = sock:send(generate_post_payload(parsed_url, access_token, batch_events, application_id, debug) .. "\r\n")
+  local ok, err = sock:send(generate_post_payload(conf, parsed_url, access_token, batch_events, application_id, debug) .. "\r\n")
   if not ok then
     sent_failure = sent_failure + #batch_events
     ngx_log(ngx.DEBUG, "[moesif] failed to send " .. tostring(#batch_events) .." events to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
