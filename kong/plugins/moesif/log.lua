@@ -64,7 +64,7 @@ local function generate_post_payload(conf, parsed_url, access_token, message, ap
     end
   else
     if debug then 
-      ngx_log(ngx_log_ERR, "[moesif] No need to decompress body: ", body)
+      ngx_log(ngx_log_ERR, "[moesif] No need to compress body: ", body)
     end
     return generate_payload_without_compression(parsed_url, application_id, body)
   end
