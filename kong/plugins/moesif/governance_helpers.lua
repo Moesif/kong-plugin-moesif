@@ -8,6 +8,7 @@ local ngx_log_ERR = ngx.ERR
 governance_rules_etags = {}
 governance_rules_hashes = {}
 regex_governance_rules_hashes = {}
+graphQlRule_hashes = {}
 
 -- Get Governance Rules function
 -- @param hash_key   Hash key of the config application Id
@@ -18,7 +19,7 @@ function _M.get_governance_rules(hash_key, conf)
     rules_socket:settimeout(conf.connect_timeout)
   
     -- Fetch governance rules
-    local sock, parsed_url = connect.get_connection("https://api.moesif.net", "/v1/rules", conf, rules_socket)
+    local _, parsed_url = connect.get_connection(conf.api_endpoint, "/v1/rules", conf, rules_socket)
 
     if type(parsed_url) == "table" and next(parsed_url) ~= nil and type(rules_socket) == "table" and next(rules_socket) ~= nil then
 
@@ -69,13 +70,26 @@ function _M.get_governance_rules(hash_key, conf)
             local governance_rules = {}
             local regex_rules = {}
             local response_body = cjson.decode(governance_rules_response:match("(%[.*])"))
-            for k, rule in pairs(response_body) do
+            local graphQLRule = false
+            for _, rule in pairs(response_body) do
                 governance_rules[rule["_id"]] = rule
+                if rule.block then
+                    for _, regex_config in pairs(rule.regex_config) do
+                        for _, condition in pairs(regex_config.conditions) do
+                            if condition.path == 'request.body.query' or condition.path == 'request.body.operationName' then
+                                graphQLRule = true
+                                break
+                            end
+                        end
+                    end
+                end
                  -- Filter governance rules of type regex
                  if rule["type"] ~= nil and rule["type"] == "regex" then
                     regex_rules[rule["_id"]] = rule
                 end
             end
+
+            graphQlRule_hashes[hash_key] = graphQLRule
 
             -- Save the governance rule in the dictionary
             if type(governance_rules) == "table" and next(governance_rules) ~= nil then
