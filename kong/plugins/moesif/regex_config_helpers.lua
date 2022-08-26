@@ -1,5 +1,5 @@
 local _M = {}
-
+local cjson = require "cjson"
 -- Function to perform the regex matching with event value and condition value
 -- @param  `event_value`     Value associated with event (request)
 -- @param  `condition_value` Value associated with the regex config condition
@@ -99,12 +99,14 @@ end
 -- @param  `request_uri`        Request uri
 -- @param  `request_ip_address` Request ip address
 -- @return `config_mapping`     Request config mapping
-function _M.prepare_request_config_mapping(request_verb, request_uri, request_ip_address)
+function _M.prepare_request_config_mapping(request_verb, request_uri, request_ip_address, request_headers, request_body)
     local config_mapping = {
         ["request"] = {
           ["verb"]= request_verb,
           ["uri"] = request_uri,
           ["ip_address"] = request_ip_address,
+          ["headers"] = request_headers,
+          ["body"] = request_body
         },
         ["response"] = {}
       }
@@ -113,8 +115,9 @@ end
 
 -- Function to prepare config mapping
 -- @param  `message`      Message to be logged
+-- @param  `hash_key`    hash_key of the application_id
 -- @return `regex_conifg` Regex config mapping
-function _M.prepare_config_mapping(message)
+function _M.prepare_config_mapping(message, hash_key)
     local regex_config = {}
     -- Config mapping for request.verb
     if (message["request"]["verb"] ~= nil) then 
@@ -135,6 +138,25 @@ function _M.prepare_config_mapping(message)
     -- Config mapping for response.status
     if (message["response"]["status"] ~= nil) then 
         regex_config["response.status"] = message["response"]["status"]
+    end
+    -- graphql regex expression
+    if graphQlRule_hashes[hash_key] then
+        if (message["request"]["headers"] and message["request"]["headers"]["content-type"] == "application/graphql")
+                and message["request"]["body"] ~= nil then
+            regex_config["request.body.query"] = message["request"]["body"]
+        else
+            if message["request"]["body"] ~= nil and message["request"]["body"] ~= ""
+                    and message["request"]["headers"]["content-type"] == "application/json" then
+                -- only decode body when graphql rule is true
+                local body = cjson.decode(message["request"]["body"])
+                if body ~= nil and body["operationName"] ~= nil then
+                    regex_config["request.body.operationName"] = body["operationName"]
+                end
+                if body ~= nil and body["query"] ~= nil then
+                    regex_config["request.body.query"] = body["query"]
+                end
+            end
+        end
     end
 
     return regex_config
