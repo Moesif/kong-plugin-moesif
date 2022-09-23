@@ -1,6 +1,9 @@
 local serializer = require "kong.plugins.moesif.moesif_ser"
 local governance = require "kong.plugins.moesif.moesif_gov"
-local BasePlugin = require "kong.plugins.base_plugin"
+local MoesifLogHandler = {
+  VERSION  = "1.0.16",
+  PRIORITY = 5,
+}
 local log = require "kong.plugins.moesif.log"
 local req_set_header = ngx.req.set_header
 local string_find = string.find
@@ -8,7 +11,6 @@ local req_read_body = ngx.req.read_body
 local req_get_headers = ngx.req.get_headers
 local req_get_body_data = ngx.req.get_body_data
 local socket = require "socket"
-local MoesifLogHandler = BasePlugin:extend()
 queue_hashes = {}
 
 
@@ -21,12 +23,7 @@ local function uuid()
     end)	
 end
 
-function MoesifLogHandler:new()
-  MoesifLogHandler.super.new(self, "moesif")
-end
-
 function MoesifLogHandler:access(conf)
-  MoesifLogHandler.super.access(self)
 
   local start_access_phase_time = socket.gettime()*1000
 
@@ -89,7 +86,6 @@ function MoesifLogHandler:access(conf)
 end
 
  function MoesifLogHandler:body_filter(conf)
- MoesifLogHandler.super.body_filter(self)
 
     local headers = ngx.resp.get_headers()
     local content_length = headers["content-length"]
@@ -129,7 +125,6 @@ end
 
 function MoesifLogHandler:log(conf)
   ngx.log(ngx.DEBUG, '[moesif] Log phase called for the new event ' .." for pid - ".. ngx.worker.pid())
-  MoesifLogHandler.super.log(self)
 
   -- Hash key of the config application Id
   local hash_key = string.sub(conf.application_id, -10)
@@ -151,7 +146,6 @@ function MoesifLogHandler:log(conf)
 end
 
 function MoesifLogHandler:header_filter(conf)
-MoesifLogHandler.super.header_filter(self)
 
     if not conf.disable_transaction_id then
       ngx.header["X-Moesif-Transaction-Id"] = ngx.ctx.transaction_id
@@ -159,12 +153,8 @@ MoesifLogHandler.super.header_filter(self)
 end
 
 function MoesifLogHandler:init_worker()
-  MoesifLogHandler.super.init_worker(self)
   log.start_background_thread()
 end
-
-MoesifLogHandler.PRIORITY = 5
-MoesifLogHandler.VERSION = "1.0.15"
 
 -- Plugin version
 plugin_version = MoesifLogHandler.VERSION
