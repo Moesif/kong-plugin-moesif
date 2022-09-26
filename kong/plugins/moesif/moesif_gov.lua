@@ -248,7 +248,7 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
 
     -- company id
     -- Fetch the company details
-    if request_headers[conf.company_id_header] ~= nil then
+    if conf.company_id_header ~= nil and request_headers[conf.company_id_header] ~= nil then
         company_id_entity = tostring(request_headers[conf.company_id_header])
     else 
         company_id_entity = nil
@@ -256,7 +256,7 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
     ngx.ctx.moesif["company_id_entity"] = company_id_entity
 
     -- Fetch the user details
-    if request_headers[conf.user_id_header] ~= nil then
+    if conf.user_id_header ~= nil and request_headers[conf.user_id_header] ~= nil then
         user_id_entity = tostring(request_headers[conf.user_id_header])
     elseif request_headers["x-consumer-custom-id"] ~= nil then
         user_id_entity = tostring(request_headers["x-consumer-custom-id"])
