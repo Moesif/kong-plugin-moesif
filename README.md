@@ -155,7 +155,7 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 
 |Parameter|Default|Description|
 |---|---|---|
-|name||The name of the plugin to use, in this case kong-plugin-moesif|
+|name||The name of the plugin to use, in this case `moesif`|
 |service_id||The id of the Service which this plugin will target.|
 |route_id	||The id of the Route which this plugin will target.|
 |enabled|true|Whether this plugin will be applied.|
