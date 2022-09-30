@@ -1,7 +1,7 @@
 local typedefs = require "kong.db.schema.typedefs"
 
 return {
-  name = "kong-plugin-moesif",
+  name = "moesif",
   fields = {
     {
       consumer = typedefs.no_consumer
