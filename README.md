@@ -153,40 +153,40 @@ curl -X POST http://kong:8001/apis/{api}/plugins \
 
 The Moesif Kong Plugin has a variety of options for things like data scrubbing and tweaking performance. 
 
-|Parameter|Default|Description|
-|---|---|---|
-|name||The name of the plugin to use, in this case `moesif`|
-|service_id||The id of the Service which this plugin will target.|
-|route_id	||The id of the Route which this plugin will target.|
-|enabled|true|Whether this plugin will be applied.|
-|consumer_id||The id of the Consumer which this plugin will target.|
-|api_id||The id of the API which this plugin will target. Note: The API Entity is deprecated in favor of Services since CE 0.13.0 and EE 0.32.|
-|config.application_id	||The Moesif application token provided to you by Moesif.|
-|config.api_endpoint|https://api.moesif.net|URL for the Moesif API.|
-|config.timeout (deprecated)|1000|Timeout in milliseconds when connecting/sending data to Moesif.|
-|config.connect_timeout|1000|Timeout in milliseconds when connecting to Moesif.|
-|config.send_timeout|2000|Timeout in milliseconds when sending data to Moesif.|
-|config.keepalive|5000|Value in milliseconds that defines for how long an idle connection will live before being closed.|
-|config.api_version|1.0|API Version you want to tag this request with.|
-|config.disable_capture_request_body|false|Disable logging of request body.|
-|config.disable_capture_response_body|false|Disable logging of response body.|
-|config.request_header_masks|{}|An array of request header fields to mask.|
-|config.request_body_masks|{}|An array of request body fields to mask.|
-|config.response_header_masks|{}|An array of response header fields to mask.|
-|config.response_body_masks|{}|An array of response body fields to mask.|
-|config.batch_size|200|Maximum batch size when sending to Moesif.|
-|config.user_id_header||Request or response header to use for identifying the User. [See identifying users](#identifying-users).|
-|config.company_id_header||Request or response header to use for identifying the Company. [See identifying companies](#identifying-companies).|
-|config.authorization_header_name|authorization|Request header containing a `Bearer` or `Basic` token to extract user id. [See identifying users](#identifying-users). Also, supports a comma separated string. We will check headers in order like `"X-Api-Key,Authorization"`.|
-|config.authorization_user_id_field|sub|Field name in JWT/OpenId token's payload for identifying users. Only applicable if `authorization_header_name` is set and is a `Bearer` token. [See identifying users](#identifying-users).|
-|config.authorization_company_id_field|''|Field name in JWT/OpenId token's payload for identifying companies. Only applicable if `authorization_header_name` is set and is a `Bearer` token. [See identifying companies](#identifying-companies).|
-|config.disable_gzip_payload_decompression|false|If set to true, will disable decompressing body in Kong.|
-|config.max_callback_time_spent|2000|Limiter on how much time to send events to Moesif per worker cycle.|
-|config.request_max_body_size_limit|100000|Maximum request body size in bytes to log.|
-|config.response_max_body_size_limit|100000|Maximum response body size in bytes to log.|
-|config.request_query_masks|{}|An array of query string params fields to mask.|
-|config.event_queue_size|5000|Maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skips adding new to event to queue to prevent memory overflow.|
-|config.debug|false|If set to true, prints internal log messages for debugging integration issues.|
+|Parameter|Default(Kong gateway 1.x, 2.x)|Default(Kong gateway 3.x onwards) |Description|
+|---|---|---|---|
+|name|||The name of the plugin to use, in this case `moesif`|
+|service_id|||The id of the Service which this plugin will target.|
+|route_id	|||The id of the Route which this plugin will target.|
+|enabled|true|true|Whether this plugin will be applied.|
+|consumer_id|||The id of the Consumer which this plugin will target.|
+|api_id|||The id of the API which this plugin will target. Note: The API Entity is deprecated in favor of Services since CE 0.13.0 and EE 0.32.|
+|config.application_id	|||The Moesif application token provided to you by Moesif.|
+|config.api_endpoint|https://api.moesif.net|https://api.moesif.net|URL for the Moesif API.|
+|config.timeout (deprecated)|1000|1000|Timeout in milliseconds when connecting/sending data to Moesif.|
+|config.connect_timeout|1000|1000|Timeout in milliseconds when connecting to Moesif.|
+|config.send_timeout|2000|2000|Timeout in milliseconds when sending data to Moesif.|
+|config.keepalive|5000|5000|Value in milliseconds that defines for how long an idle connection will live before being closed.|
+|config.api_version|1.0|1.0|API Version you want to tag this request with.|
+|config.disable_capture_request_body|false|false|Disable logging of request body.|
+|config.disable_capture_response_body|false|false|Disable logging of response body.|
+|config.request_header_masks|{}|{}|An array of request header fields to mask.|
+|config.request_body_masks|{}|{}|An array of request body fields to mask.|
+|config.response_header_masks|{}|{}|An array of response header fields to mask.|
+|config.response_body_masks|{}|{}|An array of response body fields to mask.|
+|config.batch_size|200|200|Maximum batch size when sending to Moesif.|
+|config.user_id_header|''|nil|Request or response header to use for identifying the User. [See identifying users](#identifying-users).|
+|config.company_id_header|''|nil|Request or response header to use for identifying the Company. [See identifying companies](#identifying-companies).|
+|config.authorization_header_name|authorization|authorization|Request header containing a `Bearer` or `Basic` token to extract user id. [See identifying users](#identifying-users). Also, supports a comma separated string. We will check headers in order like `"X-Api-Key,Authorization"`.|
+|config.authorization_user_id_field|sub|sub|Field name in JWT/OpenId token's payload for identifying users. Only applicable if `authorization_header_name` is set and is a `Bearer` token. [See identifying users](#identifying-users).|
+|config.authorization_company_id_field|''|nil|Field name in JWT/OpenId token's payload for identifying companies. Only applicable if `authorization_header_name` is set and is a `Bearer` token. [See identifying companies](#identifying-companies).|
+|config.disable_gzip_payload_decompression|false|false|If set to true, will disable decompressing body in Kong.|
+|config.max_callback_time_spent|750|750|Limiter on how much time to send events to Moesif per worker cycle.|
+|config.request_max_body_size_limit|100000|100000|Maximum request body size in bytes to log.|
+|config.response_max_body_size_limit|100000|100000|Maximum response body size in bytes to log.|
+|config.request_query_masks|{}|{}|An array of query string params fields to mask.|
+|config.event_queue_size|1000|1000|Maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skips adding new to event to queue to prevent memory overflow.|
+|config.debug|false|false|If set to true, prints internal log messages for debugging integration issues.|
 
 ## Updating config
 
