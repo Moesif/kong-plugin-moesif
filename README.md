@@ -204,27 +204,6 @@ luarocks install --server=http://luarocks.org/manifests/moesif kong-plugin-moesi
 
 ## Updating Plugin Configuration
 
-### 1. Retrieve the plugin instance id
-
-Using the [GET /plugins](https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#list-plugins), get the current instance id of the Moesif plugin.
-
-```bash
-curl -X GET http://localhost:8001/plugins/
-```
-
-### 2. Update the plugin instance
-
-Use the plugin id from the previous step, update the plugin with desired version using [PATCH /plugins/{plugin id}](https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#update-plugin)
-
-```bash
-curl -X PATCH http://localhost:8001/plugins/{plugin id} \
-    --data "name=moesif"  \
-    --data "config.application_id=MY_MOESIF_APPLICATION_ID" \
-    --data "config.api_version=2.0"
-```
-
-## Updating config
-
 If you need to update a configuration parameter, you must fetch and update the existing plugin instance.
 Be careful not to call `POST http://localhost:8001/plugins/` again as this will create a duplicate instance of a plugin, which Kong does not support.
 
