@@ -188,7 +188,21 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 |config.event_queue_size|1000|1000|Maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skips adding new to event to queue to prevent memory overflow.|
 |config.debug|false|false|If set to true, prints internal log messages for debugging integration issues.|
 
-## Updating config
+## Updating Plugin Version
+
+To automatically upgrade to the latest version of the plugin, run the following command:
+
+```bash
+luarocks upgrade --server=http://luarocks.org/manifests/moesif kong-plugin-moesif
+```
+
+To upgrade to a specific version, run the following command:
+
+```bash
+luarocks install --server=http://luarocks.org/manifests/moesif kong-plugin-moesif 2.0.2
+```
+
+## Updating Plugin Configuration
 
 If you need to update a configuration parameter, you must fetch and update the existing plugin instance.
 Be careful not to call `POST http://localhost:8001/plugins/` again as this will create a duplicate instance of a plugin, which Kong does not support.
