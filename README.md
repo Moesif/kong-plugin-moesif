@@ -193,7 +193,7 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 To automatically upgrade to the latest version of the plugin, run the following command:
 
 ```bash
-luarocks upgrade --server=http://luarocks.org/manifests/moesif kong-plugin-moesif
+luarocks install --server=http://luarocks.org/manifests/moesif kong-plugin-moesif
 ```
 
 To upgrade to a specific version, run the following command:
