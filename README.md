@@ -188,6 +188,41 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 |config.event_queue_size|1000|1000|Maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skips adding new to event to queue to prevent memory overflow.|
 |config.debug|false|false|If set to true, prints internal log messages for debugging integration issues.|
 
+## Updating Plugin Version
+
+To automatically upgrade to the latest version of the plugin, run the following command:
+
+```bash
+luarocks upgrade --server=http://luarocks.org/manifests/moesif kong-plugin-moesif
+```
+
+To upgrade to a specific version, run the following command:
+
+```bash
+luarocks install --server=http://luarocks.org/manifests/moesif kong-plugin-moesif 2.0.2
+```
+
+## Updating Plugin Configuration
+
+### 1. Retrieve the plugin instance id
+
+Using the [GET /plugins](https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#list-plugins), get the current instance id of the Moesif plugin.
+
+```bash
+curl -X GET http://localhost:8001/plugins/
+```
+
+### 2. Update the plugin instance
+
+Use the plugin id from the previous step, update the plugin with desired version using [PATCH /plugins/{plugin id}](https://docs.konghq.com/gateway-oss/2.4.x/admin-api/#update-plugin)
+
+```bash
+curl -X PATCH http://localhost:8001/plugins/{plugin id} \
+    --data "name=moesif"  \
+    --data "config.application_id=MY_MOESIF_APPLICATION_ID" \
+    --data "config.api_version=2.0"
+```
+
 ## Updating config
 
 If you need to update a configuration parameter, you must fetch and update the existing plugin instance.
