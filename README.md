@@ -202,6 +202,14 @@ To upgrade to a specific version, run the following command:
 luarocks install --server=http://luarocks.org/manifests/moesif kong-plugin-moesif 2.0.2
 ```
 
+### Reload Kong
+
+After upgrading the plugin, you must reload Kong to load the new version of the plugin.
+
+```bash
+kong reload
+```
+
 ## Updating Plugin Configuration
 
 If you need to update a configuration parameter, you must fetch and update the existing plugin instance.
