@@ -190,8 +190,14 @@ function _M.serialize(ngx, conf)
   if moesif_ctx.company_id_entity == nil and conf.company_id_header ~= nil then 
     if request_headers[conf.company_id_header] ~= nil then
         moesif_ctx.company_id_entity = tostring(request_headers[conf.company_id_header])
+        if conf.debug then
+          ngx.log(ngx.DEBUG, "[moesif] Company Id from request header: " .. moesif_ctx.company_id_entity)
+        end
     elseif response_headers[conf.company_id_header] ~= nil then 
-        moesif_ctx.company_id_entity = tostring(response_headers[conf.company_id_header])    
+        moesif_ctx.company_id_entity = tostring(response_headers[conf.company_id_header])
+        if conf.debug then
+          ngx.log(ngx.DEBUG, "[moesif] Company Id from response header: " .. moesif_ctx.company_id_entity)
+        end
     end
   end
 

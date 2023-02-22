@@ -250,10 +250,7 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
     -- Fetch the company details
     if conf.company_id_header ~= nil and request_headers[conf.company_id_header] ~= nil then
         company_id_entity = tostring(request_headers[conf.company_id_header])
-    else 
-        company_id_entity = nil
     end
-    ngx.ctx.moesif["company_id_entity"] = company_id_entity
 
     -- Fetch the user details
     if conf.user_id_header ~= nil and request_headers[conf.user_id_header] ~= nil then
@@ -264,7 +261,7 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
         user_id_entity = tostring(request_headers["x-consumer-username"])
     elseif request_headers["x-consumer-id"] ~= nil then
         user_id_entity = tostring(request_headers["x-consumer-id"])
-    elseif conf.authorization_header_name ~= nil and (conf.authorization_user_id_field ~= nil or (ngx.ctx.moesif["company_id_entity"] == nil and conf.authorization_company_id_field ~= "" and conf.authorization_company_id_field ~= nil)) then
+    elseif conf.authorization_header_name ~= nil and (conf.authorization_user_id_field ~= nil or (company_id_entity == nil and conf.authorization_company_id_field ~= "" and conf.authorization_company_id_field ~= nil)) then
 
         -- Split authorization header name by comma
         local auth_header_names = split(string.lower(conf.authorization_header_name), ",") 
@@ -340,9 +337,17 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
 
 
     -- Set entity in conf to use downstream
-    ngx.ctx.moesif["user_id_entity"] = user_id_entity
-    if ngx.ctx.moesif["company_id_entity"] == nil then 
+    if ngx.ctx.moesif["user_id_entity"] == nil and user_id_entity ~= nil then 
+        ngx.ctx.moesif["user_id_entity"] = user_id_entity
+        if conf.debug then
+            ngx_log(ngx.DEBUG, "[moesif] User Id from governance info: " .. user_id_entity)
+        end
+    end
+    if ngx.ctx.moesif["company_id_entity"] == nil and company_id_entity ~= nil then 
         ngx.ctx.moesif["company_id_entity"] = company_id_entity
+        if conf.debug then
+            ngx.log(ngx.DEBUG, "[moesif] Company Id from governance info: " .. company_id_entity)
+        end
     end
   
 
