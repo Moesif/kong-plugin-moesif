@@ -398,7 +398,7 @@ local function send_events_batch(premature)
         end        
       else
         has_events = false
-        if #queue <= 0 then 
+        if #queue <= 0 then
           ngx_log(ngx.DEBUG, "[moesif] Queue is empty, no events to send " .. " for pid - ".. ngx.worker.pid())
         else
           ngx_log(ngx.DEBUG, "[moesif] Max callback time exceeds, skip sending events now ")

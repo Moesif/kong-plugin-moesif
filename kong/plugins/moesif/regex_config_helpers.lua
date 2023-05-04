@@ -1,5 +1,11 @@
 local _M = {}
 local cjson = require "cjson"
+
+AppliedTo = {
+    MATCHING = "matching",
+    NOT_MATCHING = "not_matching"
+}
+
 -- Function to perform the regex matching with event value and condition value
 -- @param  `event_value`     Value associated with event (request)
 -- @param  `condition_value` Value associated with the regex config condition
@@ -90,6 +96,24 @@ function _M.fetch_governance_rule_id_on_regex_match(governance_rules, request_co
         if gr_id ~= nil then 
             return gr_id
         end 
+    end
+    return nil
+end
+
+function _M.check_event_should_blocked_by_rule(governance_rule, request_config_mapping)
+    local governance_rule_id = governance_rule["_id"]
+    local gr_regex_configs = governance_rule["regex_config"]
+    local applied_to = governance_rule["applied_to"] or AppliedTo.MATCHING
+
+    local ok, sample_rate, matched = pcall(_M.fetch_sample_rate_block_request_on_regex_match, gr_regex_configs, request_config_mapping)
+    local should_block = (matched and applied_to == AppliedTo.MATCHING) or
+                        (not matched and applied_to == AppliedTo.NOT_MATCHING)
+
+    if ok then
+        -- Check if need to block the request
+        if should_block then
+            return governance_rule_id
+        end
     end
     return nil
 end

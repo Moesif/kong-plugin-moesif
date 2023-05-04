@@ -139,19 +139,15 @@ function block_request_based_on_entity_governance_rule(hash_key, conf, rule_name
             local governance_rule = governance_rules[rule_id]
 
             -- Don't block if entity_rule has regex config and doesn't match
-            local gr_regex_configs = {}
-            if governance_rule["regex_config"] ~= nil then
-                gr_regex_configs = governance_rule["regex_config"]
-            end
+            local ok, gr_match_id = pcall(regex_config_helper.check_event_should_blocked_by_rule, governance_rule, request_config_mapping)
 
-            -- Check if regex configs is table and not empty
-            if gr_regex_configs ~= nil and type(gr_regex_configs) == "table" and next(gr_regex_configs) ~= nil then
-                -- Check if the request config mapping matches governance rule regex condtions
-                local gr_match_id = regex_config_helper.fetch_governance_rule_id(gr_regex_configs, request_config_mapping, rule_id)
+            if not ok then
+                ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request as governance rule" ..rule_id.. " fetching issue" ..gr_match_id)
+            else
                 -- If the regex conditions does not match, skip blocking the request
                 if gr_match_id == nil then
                     if conf.debug then
-                        ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request as governance rule regex conditions does not match")
+                        ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request as governance rule" ..rule_id.. " regex conditions does not match")
                     end
                     return nil
                 end
@@ -349,7 +345,7 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
             ngx.log(ngx.DEBUG, "[moesif] Company Id from governance info: " .. company_id_entity)
         end
     end
-  
+
 
     if governance_rules_hashes[hash_key] ~= nil and type(governance_rules_hashes[hash_key]) == "table" and next(governance_rules_hashes[hash_key]) ~= nil then
         -- Check if need to block request based on user governance rule
