@@ -142,12 +142,14 @@ function block_request_based_on_entity_governance_rule(hash_key, conf, rule_name
             local ok, gr_match_id = pcall(regex_config_helper.check_event_should_blocked_by_rule, governance_rule, request_config_mapping)
 
             if not ok then
-                ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request as governance rule" ..rule_id.. " fetching issue" ..gr_match_id)
+                if conf.debug then
+                    ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request as entity governance rule" ..rule_id.. " fetching issue" ..gr_match_id)
+                end
             else
                 -- If the regex conditions does not match, skip blocking the request
                 if gr_match_id == nil then
                     if conf.debug then
-                        ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request as governance rule" ..rule_id.. " regex conditions does not match")
+                        ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request as entity governance rule" ..rule_id.. " regex conditions does not match")
                     end
                     return nil
                 end
@@ -371,13 +373,13 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
     -- Check if need to block request based on the governance rule with regex config
     if regex_governance_rules_hashes[hash_key] ~= nil and type(regex_governance_rules_hashes[hash_key]) == "table" and next(regex_governance_rules_hashes[hash_key]) ~= nil then
         -- Check if the governance rule regex config matches request config mapping and fetch governance rule id
-        local gr_id = regex_config_helper.fetch_governance_rule_id_on_regex_match(regex_governance_rules_hashes[hash_key], request_config_mapping)
+        local gr_id = regex_config_helper.fetch_governance_rule_id_on_regex_match(regex_governance_rules_hashes[hash_key], request_config_mapping, conf)
         -- Check if need to block request based on governance rule regex config
-        if gr_id ~= nil then 
+        if gr_id ~= nil then
             local sc_regex_req = block_request_based_on_governance_rule_regex_config(hash_key, gr_id, conf, start_access_phase_time)
             if sc_regex_req == nil then
                 if conf.debug then
-                    ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request based on the governance rule regex config")
+                    ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request based on the regex governance rule")
                 end
             end
         end
