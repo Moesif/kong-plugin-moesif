@@ -92,13 +92,13 @@ function _M.fetch_governance_rule_id_on_regex_match(governance_rules, request_co
         local ok, should_block_rule_id = pcall(_M.check_event_should_blocked_by_rule, rule, request_config_mapping)
         if not ok then
             if conf.debug then
-                ngx.log(ngx.DEBUG, "[moesif] Skipped blocking request as regex governance rule" ..rule_id.. " fetching issue" ..should_block_rule_id)
+                ngx.log(ngx.DEBUG, "[moesif] Skipped blocking request as governance rule" ..rule_id.. " fetching issue" ..should_block_rule_id)
             end
         else
             -- Check if the governance rule is not nil
             if should_block_rule_id == nil then
                 if conf.debug then
-                    ngx.log(ngx.DEBUG, "[moesif] Skipped blocking request as regex governance rule" ..rule_id.. " regex conditions does not match")
+                    ngx.log(ngx.DEBUG, "[moesif] Skipped blocking request as governance rule" ..rule_id.. " regex conditions does not match")
                 end
             else
                 return should_block_rule_id

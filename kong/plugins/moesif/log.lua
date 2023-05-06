@@ -209,7 +209,7 @@ function get_config_internal(conf)
           if (response_body["user_rules"] ~= nil) then
             entity_rules[hash_key]["user_rules"] = response_body["user_rules"]
           end
-            
+
           if (response_body["company_rules"] ~= nil) then
               entity_rules[hash_key]["company_rules"] = response_body["company_rules"]
           end
@@ -227,7 +227,7 @@ function get_config_internal(conf)
               conf["regex_config"] = response_body["regex_config"]
             end
 
-            if (response_body["sample_rate"] ~= nil) then 
+            if (response_body["sample_rate"] ~= nil) then
               conf["sample_rate"] = response_body["sample_rate"]
             end
           end
@@ -239,7 +239,7 @@ function get_config_internal(conf)
       else
         ngx_log(ngx.DEBUG, "[moesif] application config is nil ")
       end
-    else 
+    else
       ngx_log(ngx.DEBUG,"[moesif] error while reading response after fetching app config - ", config_response_error)
     end
     return config_response
@@ -254,7 +254,7 @@ function get_config(premature, hash_key)
     return
   end
 
-  -- Fetch the config 
+  -- Fetch the config
   local conf = config_hashes[hash_key]
 
   local ok, err = pcall(get_config_internal, conf)
@@ -262,7 +262,7 @@ function get_config(premature, hash_key)
     if conf.debug then
       ngx_log(ngx_log_ERR, "[moesif] failed to get config internal ", err)
     end
-  else 
+  else
     if conf.debug then
       ngx_log(ngx.DEBUG, "[moesif] get config internal success " , ok)
     end
@@ -292,7 +292,7 @@ local function send_events_batch(premature)
   local send_events_socket = ngx.socket.tcp()
   local global_socket_timeout = 10000
   send_events_socket:settimeout(global_socket_timeout)
-  -- Temp hash key for debug 
+  -- Temp hash key for debug
   local temp_hash_key
   local batch_events = {}
   repeat
@@ -322,7 +322,7 @@ local function send_events_batch(premature)
 
             if (#batch_events == configuration.batch_size) then
               local start_pay_time = socket.gettime()*1000
-               if pcall(send_payload, send_events_socket, parsed_url, batch_events, configuration) then 
+               if pcall(send_payload, send_events_socket, parsed_url, batch_events, configuration) then
                 sent_event = sent_event + #batch_events
                else
                 if configuration.debug then
@@ -372,7 +372,7 @@ local function send_events_batch(premature)
 
           local ok, err = send_events_socket:setkeepalive()
           if not ok then
-            if configuration.debug then 
+            if configuration.debug then
               ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
             end
             local close_ok, close_err = send_events_socket:close()
@@ -388,14 +388,14 @@ local function send_events_batch(premature)
           else
             ngx_log(ngx.DEBUG,"[moesif] success keep-alive", ok)
           end
-        else 
-          if configuration.debug then 
+        else
+          if configuration.debug then
             ngx_log(ngx.DEBUG, "[moesif] Failure to create socket connection for sending event to Moesif ")
           end
         end
-        if configuration.debug then 
+        if configuration.debug then
           ngx.log(ngx.DEBUG, "[moesif] Received Event - "..tostring(rec_event).." and Sent Event - "..tostring(sent_event).." for pid - ".. ngx.worker.pid())
-        end        
+        end
       else
         has_events = false
         if #queue <= 0 then
@@ -412,13 +412,13 @@ local function send_events_batch(premature)
   end
 
   -- Manually garbage collect every alternate cycle
-  gc = gc + 1 
-  if gc == 8 then 
+  gc = gc + 1
+  if gc == 8 then
     ngx_log(ngx.INFO, "[moesif] Calling GC at - "..tostring(socket.gettime()*1000).." in pid - ".. ngx.worker.pid())
     collectgarbage()
     gc = 0
   end
-  
+
   -- Periodic health check
   health_check = health_check + 1
   if health_check == 150 then
@@ -428,12 +428,12 @@ local function send_events_batch(premature)
     end
     health_check = 0
   end
-  
+
   local endtime = socket.gettime()*1000
-  
+
   -- Event queue size
   local length = 0
-  if queue_hashes[temp_hash_key] ~= nil then 
+  if queue_hashes[temp_hash_key] ~= nil then
     length = #queue_hashes[temp_hash_key]
   end
   ngx_log(ngx.DEBUG, "[moesif] send events batch took time - ".. tostring(endtime - start_time) .. " and sent event delta - " .. tostring(sent_event - prv_events).." for pid - ".. ngx.worker.pid().. " with queue size - ".. tostring(length))
