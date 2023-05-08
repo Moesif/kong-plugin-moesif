@@ -48,7 +48,7 @@ function transform_values(body_table, rule_values)
         for k,v in pairs(body_table) do updated_body_table[k]=v end
 
         for key, headerValue in pairs(updated_body_table) do 
-            if type(headerValue) == "string" then 
+            if type(headerValue) == "string" then
                 updated_body_table[key] = headerValue:gsub("{{%d+}}", rule_values)
             elseif type(headerValue) == "table" and next(headerValue) ~= nil then 
                 local updatedBody = transform_values(headerValue, rule_values)
@@ -57,6 +57,70 @@ function transform_values(body_table, rule_values)
         end
         return updated_body_table
     end
+end
+
+function get_updated_response_body_and_headers(gr_headers, gr_body, governance_rule, rule_values)
+    -- Updated governance rule headers
+    local updated_gr_headers = {}
+    if gr_headers ~= nil then
+        for k,v in pairs(gr_headers) do updated_gr_headers[k]=v end
+    end
+
+    -- Updated governance rule body
+    local updated_gr_body = {}
+    if type(gr_body) == "string" then
+        updated_gr_body = gr_body
+    elseif type(gr_body) == "table" and next(gr_body) ~= nil then
+        updated_gr_body = {}
+        for k,v in pairs(gr_body) do updated_gr_body[k]=v end
+    end
+
+    -- governance rule variables
+    local rule_variables = governance_rule["variables"]
+
+    -- build rule value mapping with UNKNOWN values
+    local updated_rule_values = {}
+    if rule_values ~= nil and rule_variables ~= nil then
+        updated_rule_values = generate_update_rule_values(rule_values, rule_variables, conf)
+    end
+
+    -- Check if rule_values is table and not empty
+    if rule_values ~= nil and type(updated_gr_headers) == "table" and next(updated_gr_headers) ~= nil then
+        updated_gr_headers = transform_values(updated_gr_headers, updated_rule_values)
+    end
+    -- Replace body
+    updated_gr_body = transform_values(updated_gr_body, updated_rule_values)
+
+    return updated_gr_body, updated_gr_headers
+end
+
+function generate_update_rule_values(entity_rule_values, rule_variables, conf)
+    local updated_rule_values = {}
+    local ok, rule_variables_map = pcall(create_rule_variables_map, rule_variables)
+
+    if ok then
+        for k, v in pairs(rule_variables_map) do
+            if entity_rule_values[k] == nil then
+                updated_rule_values["{{"..k.."}}"] = "UNKNOWN"
+            else
+                updated_rule_values["{{"..k.."}}"] = v
+            end
+            ngx_log(ngx.DEBUG, "HELLO: " ..updated_rule_values["{{"..k.."}}"])
+        end
+    else
+        if conf.debug then
+            ngx_log(ngx.DEBUG, "[moesif] Error when pursing governance rule variables "..rule_variables_map)
+        end
+    end
+    return updated_rule_values
+end
+
+function create_rule_variables_map(rule_variables)
+    local rule_variables_map = {}
+    for _, name_and_path in pairs(rule_variables) do
+        rule_variables_map[name_and_path["name"]] = name_and_path["path"]
+    end
+    return rule_variables_map
 end
 
 -- Fetch response status, headers, and body from the governance rule
@@ -94,13 +158,15 @@ function block_request_based_on_governance_rule_regex_config(hash_key, rule_type
            -- Response status, headers, body
            local gr_status, gr_headers, gr_body = fetch_governance_rule_response_details(governance_rule)
 
+           local updated_gr_body, updated_gr_headers = get_updated_response_body_and_headers(gr_headers, gr_body, governance_rule, {})
+
            -- Add blocked_by field to the event to determine the rule by which the event was blocked
            ngx.ctx.moesif["blocked_by"] = rule_id
 
            local end_access_phase_time = socket.gettime()*1000
            ngx.log(ngx.DEBUG, "[moesif] access phase took time for blocking request - ".. tostring(end_access_phase_time - start_access_phase_time).." for pid - ".. ngx.worker.pid())
 
-           return kong.response.exit(gr_status, gr_body, gr_headers)
+           return kong.response.exit(gr_status, updated_gr_body, updated_gr_headers)
        else 
            if conf.debug then
                ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request as response is not set for the governance rule with regex config")
@@ -171,39 +237,11 @@ function block_request_based_on_entity_governance_rule(hash_key, conf, rule_name
                 
                 -- Response status, headers, body
                 local gr_status, gr_headers, gr_body = fetch_governance_rule_response_details(governance_rule)
-                
-                -- Updated governance rule headers
-                local updated_gr_headers = {}
-                if gr_headers ~= nil then 
-                    for k,v in pairs(gr_headers) do updated_gr_headers[k]=v end
-                end
-
-                -- Updated governance rule body
-                local updated_gr_body
-                if type(gr_body) == "string" then
-                    updated_gr_body = gr_body
-                elseif type(gr_body) == "table" and next(gr_body) ~= nil then 
-                    updated_gr_body = {}
-                    for k,v in pairs(gr_body) do updated_gr_body[k]=v end
-                end
 
                 -- Entity rule values
                 local rule_values = entity_rule["values"]
 
-                local updated_rule_values = {}
-                if rule_values ~= nil then 
-                    for k,v in pairs(rule_values) do updated_rule_values["{{"..k.."}}"]=v end
-                end
-
-                -- Check if rule_values is table and not empty
-                if rule_values ~= nil and type(updated_gr_headers) == "table" and next(updated_gr_headers) ~= nil then
-                    -- Replace headers
-                    for headerName, headerValue in pairs(updated_gr_headers) do
-                        updated_gr_headers[headerName] = headerValue:gsub("{{%d+}}", updated_rule_values)
-                    end
-                end
-                -- Replace body
-                updated_gr_body = transform_values(updated_gr_body, updated_rule_values)
+                local updated_gr_body, updated_gr_headers = get_updated_response_body_and_headers(gr_headers, gr_body, governance_rule, rule_values)
 
                 -- Add blocked_by field to the event to determine the rule by which the event was blocked
                 ngx.ctx.moesif["blocked_by"] = rule_id
