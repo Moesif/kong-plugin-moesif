@@ -103,9 +103,8 @@ function generate_update_rule_values(entity_rule_values, rule_variables, conf)
             if entity_rule_values[k] == nil then
                 updated_rule_values["{{"..k.."}}"] = "UNKNOWN"
             else
-                updated_rule_values["{{"..k.."}}"] = v
+                updated_rule_values["{{"..k.."}}"] = entity_rule_values[k]
             end
-            ngx_log(ngx.DEBUG, "HELLO: " ..updated_rule_values["{{"..k.."}}"])
         end
     else
         if conf.debug then
@@ -139,12 +138,34 @@ function fetch_governance_rule_response_details(governance_rule)
    return status, headers, body
 end
 
+function generate_entity_rule_values_mapping(hash_key, rule_name, entity_id, governance_rules)
+    local entity_rule_values = {}
+    if entity_id ~= nil then
+        if entity_rules[hash_key] ~= nil and type(entity_rules[hash_key]) == "table" and next(entity_rules[hash_key]) ~= nil and
+            entity_rules[hash_key][rule_name] ~= nil and entity_rules[hash_key][rule_name][entity_id] ~= nil then
+            -- Fetch all the rules applied to an entity
+            local entity_rules = entity_rules[hash_key][rule_name][entity_id]
+
+            for _, rule in pairs(entity_rules) do
+                local rule_id = rule["rules"]
+                if rule_id ~= nil and governance_rules[rule_id] ~= nil then
+                    if governance_rules[rule_id]["block"] then
+                        entity_rule_values[rule_id] = rule["values"]
+                    end
+                end
+            end
+        end
+    end
+    return entity_rule_values
+end
+
 -- Check if need to block request based on the governance rule regex config associated with the request
 -- @param `hash_key`                Hash key of the config application Id
+-- @param `rule_name`               Type of rules in entity rules config [user_rules, company_rules]
 -- @param `rule_id`                 Governance rule id
 -- @param `conf`                    Configuration table, holds http endpoint details
 -- @param `start_access_phase_time` Access phase start time
-function block_request_based_on_governance_rule_regex_config(hash_key, rule_type, rule_id, conf, start_access_phase_time)
+function block_request_based_on_governance_rule_regex_config(hash_key, rule_type, rule_id, conf, start_access_phase_time, entity_rule_type, entity_id)
     local governance_rules = get_unidentified_rules(rule_type)
    -- Fetch the governance rule
     local governance_rule = governance_rules[rule_id]
@@ -158,7 +179,17 @@ function block_request_based_on_governance_rule_regex_config(hash_key, rule_type
            -- Response status, headers, body
            local gr_status, gr_headers, gr_body = fetch_governance_rule_response_details(governance_rule)
 
-           local updated_gr_body, updated_gr_headers = get_updated_response_body_and_headers(gr_headers, gr_body, governance_rule, {})
+            -- get user mapping value in collector /config rule, if user_id is null, return empty map
+            local ok, entity_rule_values = pcall(generate_entity_rule_values_mapping, hash_key, entity_rule_type, entity_id, governance_rules)
+            if not ok then
+                ngx_log(ngx.DEBUG, "[moesif] Error when purse entity rules and values " .. entity_rule_value)
+            end
+
+           local entity_values = entity_rule_values[rule_id]
+           if entity_values == nil then
+                entity_values = {}
+           end
+           local updated_gr_body, updated_gr_headers = get_updated_response_body_and_headers(gr_headers, gr_body, governance_rule, entity_values)
 
            -- Add blocked_by field to the event to determine the rule by which the event was blocked
            ngx.ctx.moesif["blocked_by"] = rule_id
@@ -429,7 +460,7 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
         local gr_id = regex_config_helper.fetch_governance_rule_id_on_regex_match(unidentified_user_rules, request_config_mapping, conf)
         -- Check if need to block request based on governance rule regex config
         if gr_id ~= nil then
-            local sc_regex_req = block_request_based_on_governance_rule_regex_config(hash_key, RuleType.USER, gr_id, conf, start_access_phase_time)
+            local sc_regex_req = block_request_based_on_governance_rule_regex_config(hash_key, RuleType.USER, gr_id, conf, start_access_phase_time, "user_rules", user_id_entity)
             if sc_regex_req == nil then
                 if conf.debug then
                     ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request based on the unidentified user governance rule")
@@ -454,7 +485,7 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
         local gr_id = regex_config_helper.fetch_governance_rule_id_on_regex_match(unidentified_company_rules, request_config_mapping, conf)
         -- Check if need to block request based on governance rule regex config
         if gr_id ~= nil then
-            local sc_regex_req = block_request_based_on_governance_rule_regex_config(hash_key, RuleType.COMPANY, gr_id, conf, start_access_phase_time)
+            local sc_regex_req = block_request_based_on_governance_rule_regex_config(hash_key, RuleType.COMPANY, gr_id, conf, start_access_phase_time, "company_rules", company_id_entity)
             if sc_regex_req == nil then
                 if conf.debug then
                     ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request based on the unidentified company governance rule")
@@ -469,7 +500,7 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
         local gr_id = regex_config_helper.fetch_governance_rule_id_on_regex_match(regex_rules, request_config_mapping, conf)
         -- Check if need to block request based on governance rule regex config
         if gr_id ~= nil then
-            local sc_regex_req = block_request_based_on_governance_rule_regex_config(hash_key, RuleType.REGEX, gr_id, conf, start_access_phase_time)
+            local sc_regex_req = block_request_based_on_governance_rule_regex_config(hash_key, RuleType.REGEX, gr_id, conf, start_access_phase_time, nil, nil)
             if sc_regex_req == nil then
                 if conf.debug then
                     ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request based on the regex governance rule")
