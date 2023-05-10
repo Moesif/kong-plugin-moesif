@@ -5,12 +5,9 @@ local connect = require "kong.plugins.moesif.connection"
 local string_format = string.format
 local ngx_log = ngx.log
 local ngx_log_ERR = ngx.ERR
+governance_rules_hashes = {}
+regex_governance_rules_hashes = {}
 governance_rules_etags = {}
-identified_user_rules = {}
-unidentified_user_rules = {}
-identified_company_rules = {}
-unidentified_company_rules = {}
-regex_rules = {}
 graphQlRule_hashes = {}
 
 RuleType = {
@@ -75,6 +72,11 @@ function _M.get_governance_rules(hash_key, conf)
                 end
             end
 
+            local regex_rules = {}
+            local identified_user_rules = {}
+            local unidentified_user_rules = {}
+            local identified_company_rules = {}
+            local unidentified_company_rules = {}
             -- Get the governance rules
             local response_body = cjson.decode(governance_rules_response:match("(%[.*])"))
             local graphQLRule = false
@@ -105,6 +107,18 @@ function _M.get_governance_rules(hash_key, conf)
                     end
                 end
             end
+
+            regex_governance_rules_hashes[hash_key] = regex_rules
+            governance_rules_hashes[hash_key] = {
+                [RuleType.USER] = {
+                    unidentified = unidentified_user_rules,
+                    identified = identified_user_rules
+                },
+                [RuleType.COMPANY] = {
+                    unidentified = unidentified_company_rules,
+                    identified = identified_company_rules
+                }
+            }
 
             graphQlRule_hashes[hash_key] = graphQLRule
 
