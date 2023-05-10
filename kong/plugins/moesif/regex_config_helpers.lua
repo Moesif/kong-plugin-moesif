@@ -1,5 +1,11 @@
 local _M = {}
 local cjson = require "cjson"
+
+AppliedTo = {
+    MATCHING = "matching",
+    NOT_MATCHING = "not_matching"
+}
+
 -- Function to perform the regex matching with event value and condition value
 -- @param  `event_value`     Value associated with event (request)
 -- @param  `condition_value` Value associated with the regex config condition
@@ -79,17 +85,43 @@ end
 -- @param `governance_rules`       Governance rules with regex configs       
 -- @param `request_config_mapping` Config associated with the request
 -- @param `gr_id`                  Return the governance rule Id if regex config matches else nil
-function _M.fetch_governance_rule_id_on_regex_match(governance_rules, request_config_mapping)
-    -- Iterate through the governance rules 
-    for id, rule in pairs(governance_rules) do
-        -- Fetch the regex config from the governance rule
-        local gr_regex_configs = rule["regex_config"]
-        -- Check if the request config mapping matches governance rule regex condtions
-        local gr_id = _M.fetch_governance_rule_id(gr_regex_configs, request_config_mapping, id)
-        -- Check if the governance rule is not nil
-        if gr_id ~= nil then 
-            return gr_id
-        end 
+function _M.fetch_governance_rule_id_on_regex_match(governance_rules, request_config_mapping, conf)
+    -- Iterate through the governance rules
+    for rule_id, rule in pairs(governance_rules) do
+        -- Check if the request config mapping matches governance rule
+        local ok, should_block_rule_id = pcall(_M.check_event_should_blocked_by_rule, rule, request_config_mapping)
+        if not ok then
+            if conf.debug then
+                ngx.log(ngx.DEBUG, "[moesif] Skipped blocking request as governance rule" ..rule_id.. " fetching issue" ..should_block_rule_id)
+            end
+        else
+            -- Check if the governance rule is not nil
+            if should_block_rule_id == nil then
+                if conf.debug then
+                    ngx.log(ngx.DEBUG, "[moesif] Skipped blocking request as governance rule" ..rule_id.. " regex conditions does not match")
+                end
+            else
+                return should_block_rule_id
+            end
+        end
+    end
+    return nil
+end
+
+function _M.check_event_should_blocked_by_rule(governance_rule, request_config_mapping)
+    local governance_rule_id = governance_rule["_id"]
+    local gr_regex_configs = governance_rule["regex_config"]
+    local applied_to = governance_rule["applied_to"] or AppliedTo.MATCHING
+
+    local ok, sample_rate, matched = pcall(_M.fetch_sample_rate_block_request_on_regex_match, gr_regex_configs, request_config_mapping)
+    local should_block = (matched and applied_to == AppliedTo.MATCHING) or
+                        (not matched and applied_to == AppliedTo.NOT_MATCHING)
+
+    if ok then
+        -- Check if need to block the request
+        if should_block then
+            return governance_rule_id
+        end
     end
     return nil
 end

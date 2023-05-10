@@ -40,3 +40,7 @@ luac.out
 *.x86_64
 *.hex
 
+.idea/
+*.sh
+.DS_Store
+
