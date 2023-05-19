@@ -304,6 +304,24 @@ Key (cache_key)=(plugins:moesif::::) already exists., client: 127.0.0.1, server:
 
 Another reason plugin may not be running is if you didn't restart Kong after enabling the plugin. Make sure you restart your Kong instance.
 
+### Warning: Failed searching manifest when installing plugin
+
+When installing the plugin you may encounter the following warning:
+
+```
+Warning: Failed searching manifest: Failed extracting manifest file: 'unzip -n' program not found. Make sure unzip is installed and is available in your PATH (or you may want to edit the 'variables.UNZIP' value in file '/usr/local/etc/luarocks/config-5.1.lua')
+Warning: Failed searching manifest: Failed extracting manifest file: 'unzip -n' program not found. Make sure unzip is installed and is available in your PATH (or you may want to edit the 'variables.UNZIP' value in file '/usr/local/etc/luarocks/config-5.1.lua')
+
+Error: No results matching query were found for Lua 5.1.
+To check if it is available for other Lua versions, use --check-lua-versions.`
+```
+
+You may be missing certain packages that are required to install the plugin. To remedy this, make sure the `unzip` package is installed on your machine. For example, when using the `apt` package manager, run the following command:
+
+```
+apt-get update; apt-get install curl vim unzip
+```
+
 ## Tested Version
 
 For tested versions, [see this page](https://docs.konghq.com/hub/moesif/kong-plugin-moesif/) on Kong docs. 
