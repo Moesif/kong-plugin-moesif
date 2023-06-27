@@ -185,7 +185,7 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 |config.request_max_body_size_limit|100000|100000|Maximum request body size in bytes to log.|
 |config.response_max_body_size_limit|100000|100000|Maximum response body size in bytes to log.|
 |config.request_query_masks|{}|{}|An array of query string params fields to mask.|
-|config.event_queue_size|1000|1000|Maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skips adding new to event to queue to prevent memory overflow.|
+|config.event_queue_size|100000|100000|Maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skips adding new to event to queue to prevent memory overflow.|
 |config.debug|false|false|If set to true, prints internal log messages for debugging integration issues.|
 
 ## Updating Plugin Version
