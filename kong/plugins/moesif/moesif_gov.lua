@@ -512,7 +512,7 @@ function _M.govern_request(ngx, conf, start_access_phase_time)
             local sc_company_unidentified_rsp = block_request_based_on_entity_governance_rule(unidentified_company_gov_rules, hash_key, conf, "company_rules", company_id_entity, start_access_phase_time, request_config_mapping)
             if sc_company_unidentified_rsp == nil then
                 if conf.debug then
-                    ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request based on the unidentified user governance rule company_id - " ..company_id_entity)
+                    ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request based on the unidentified company governance rule company_id - " ..company_id_entity)
                 end
             end
         end
