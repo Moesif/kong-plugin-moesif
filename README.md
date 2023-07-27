@@ -26,6 +26,8 @@ If the luarocks utility is installed in your system (this is likely the case if 
 luarocks install --server=http://luarocks.org/manifests/moesif kong-plugin-moesif
 ```
 
+> Make sure the `unzip` package is installed on your machine. For example when using the apt package manager, run `apt-get update; apt-get install curl vim unzip`.
+
 ### 2. Update your loaded plugins list
 In your `kong.conf`, append `moesif` to the `plugins` field (or `custom_plugins` if old version of Kong). Make sure the field is not commented out.
 
