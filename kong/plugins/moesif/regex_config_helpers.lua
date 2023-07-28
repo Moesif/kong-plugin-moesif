@@ -20,6 +20,10 @@ end
 -- @param  `request_config_mapping`  Config associated with the request
 -- @return `sample_rate, block`      Sample rate and boolean flag (block or not)
 function _M.fetch_sample_rate_block_request_on_regex_match(gr_regex_configs, request_config_mapping)
+    -- if regex config is not defined, consider all event match with the governance rule
+    if gr_regex_configs == nil or (type(gr_regex_configs) == "table" and next(gr_regex_configs) == nil) then
+        return nil, true
+    end
     -- Iterate through the list of governance rule regex configs
     for _, regex_rule in pairs(gr_regex_configs) do
         -- Fetch the sample rate
@@ -27,7 +31,7 @@ function _M.fetch_sample_rate_block_request_on_regex_match(gr_regex_configs, req
         -- Fetch the conditions
         local conditions = regex_rule["conditions"]
         -- Bool flag to determine if the regex conditions are matched
-        local regex_matched = nil 
+        local regex_matched = false
         -- Create a table to hold the conditions mapping (path and value)
         local condition_table = {}
 
@@ -81,49 +85,45 @@ function _M.fetch_governance_rule_id(gr_regex_configs, request_config_mapping, g
     return nil
 end
 
--- Function to fetch the governance rule id when the regex config matches mapping associated with the request
+-- Function to fetch the all governance rule ids when the regex config matches mapping associated with the request
 -- @param `governance_rules`       Governance rules with regex configs       
 -- @param `request_config_mapping` Config associated with the request
 -- @param `gr_id`                  Return the governance rule Id if regex config matches else nil
-function _M.fetch_governance_rule_id_on_regex_match(governance_rules, request_config_mapping, conf)
+function _M.fetch_governance_rule_id_on_regex_match(governance_rules, request_config_mapping, debug)
+    local matched_rules = {}
     -- Iterate through the governance rules
     for rule_id, rule in pairs(governance_rules) do
         -- Check if the request config mapping matches governance rule
-        local ok, should_block_rule_id = pcall(_M.check_event_should_blocked_by_rule, rule, request_config_mapping)
+        local ok, matched = pcall(_M.check_event_should_blocked_by_rule, rule, request_config_mapping)
         if not ok then
-            if conf.debug then
-                ngx.log(ngx.DEBUG, "[moesif] Skipped blocking request as governance rule" ..rule_id.. " fetching issue" ..should_block_rule_id)
+            if debug then
+                ngx.log(ngx.DEBUG, "[moesif] Skipped blocking request as governance rule" ..rule_id.. " fetching issue")
             end
         else
             -- Check if the governance rule is not nil
-            if should_block_rule_id == nil then
-                if conf.debug then
+            if not matched then
+                if debug then
                     ngx.log(ngx.DEBUG, "[moesif] Skipped blocking request as governance rule" ..rule_id.. " regex conditions does not match")
                 end
             else
-                return should_block_rule_id
+                table.insert(matched_rules, rule)
             end
         end
     end
-    return nil
+    return matched_rules
 end
 
 function _M.check_event_should_blocked_by_rule(governance_rule, request_config_mapping)
-    local governance_rule_id = governance_rule["_id"]
     local gr_regex_configs = governance_rule["regex_config"]
-    local applied_to = governance_rule["applied_to"] or AppliedTo.MATCHING
 
     local ok, sample_rate, matched = pcall(_M.fetch_sample_rate_block_request_on_regex_match, gr_regex_configs, request_config_mapping)
-    local should_block = (matched and applied_to == AppliedTo.MATCHING) or
-                        (not matched and applied_to == AppliedTo.NOT_MATCHING)
 
     if ok then
         -- Check if need to block the request
-        if should_block then
-            return governance_rule_id
-        end
+        return matched
+    else
+        return false
     end
-    return nil
 end
 
 -- Function to prepare request config mapping 
