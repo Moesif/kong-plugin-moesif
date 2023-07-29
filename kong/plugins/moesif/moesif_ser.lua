@@ -119,6 +119,11 @@ function parse_body(headers, body, mask_fields, conf)
   return body_entity, body_transfer_encoding
 end
 
+local function fetchRouteAndServices(table, fieldName)
+  local ok, value = pcall(function() return table[fieldName] end)
+  return ok and value or nil
+end
+
 function _M.serialize(ngx, conf)
   local moesif_ctx = ngx.ctx.moesif or {}
   local session_token_entity
@@ -206,6 +211,15 @@ function _M.serialize(ngx, conf)
     blocked_by_entity = moesif_ctx.blocked_by
   end
 
+  local metadata = {}
+
+  local route_and_services = {
+    route_hosts = fetchRouteAndServices(ngx.ctx.route, "hosts"),
+    service_name = fetchRouteAndServices(ngx.ctx.service, "name")
+  }
+
+  metadata["kong"] = route_and_services
+
   return {
     request = {
       uri =  helpers.prepare_request_uri(ngx, conf),
@@ -229,7 +243,8 @@ function _M.serialize(ngx, conf)
     user_id = moesif_ctx.user_id_entity,
     company_id = moesif_ctx.company_id_entity,
     direction = "Incoming",
-    blocked_by = blocked_by_entity
+    blocked_by = blocked_by_entity,
+    metadata = metadata
   }
 end
 
