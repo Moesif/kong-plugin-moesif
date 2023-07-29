@@ -23,7 +23,7 @@ local sent_failure = 0
 local merge_config = 0
 local timer_wakeup_seconds = 1.5
 local gr_helpers = require "kong.plugins.moesif.governance_helpers"
-entity_rules = {}
+entity_rules_hashes = {}
 
 -- Generates http payload without compression
 -- @param `parsed_url` contains the host details
@@ -196,9 +196,11 @@ function get_config_internal(conf)
           -- Hash key of the config application Id
           local hash_key = string.sub(conf.application_id, -10)
 
+          local entity_rules = {}
           -- Create empty table for user/company rules
           if entity_rules[hash_key] == nil then
             entity_rules[hash_key] = {}
+            entity_rules_hashes[hash_key] = {}
           end
 
           -- Get governance rules
@@ -213,6 +215,9 @@ function get_config_internal(conf)
           if (response_body["company_rules"] ~= nil) then
               entity_rules[hash_key]["company_rules"] = response_body["company_rules"]
           end
+
+          -- generate entity merge tag values mapping
+          entity_rules_hashes[hash_key] = generate_entity_rule_values_mapping(hash_key, entity_rules)
 
           if (conf["sample_rate"] ~= nil) and (response_body ~= nil) then
             if (response_body["user_sample_rate"] ~= nil) then
