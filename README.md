@@ -1,12 +1,15 @@
 # Moesif Kong Plugin
 
-The [Moesif Kong plugin](https://docs.konghq.com/hub/moesif/kong-plugin-moesif/) captures API traffic from [Kong API Gateway](https://getkong.org)
-and logs it to [Moesif API Analytics](https://www.moesif.com). This plugin leverages an asynchronous design and doesn’t add any latency to your API calls.
+This plugin allows you to understand [customer API usage](https://www.moesif.com/features/api-analytics?utm_medium=docs&utm_campaign=partners&utm_source=kong&language=kong-api-gateway) and monetize your APIs with [usage-based billing](https://www.moesif.com/solutions/metered-api-billing?utm_medium=docs&utm_campaign=partners&utm_source=kong&language=kong-api-gateway)
+by logging API traffic to [Moesif API Monetization and Analytics](https://www.moesif.com?language=kong-api-gateway&utm_medium=docs&utm_campaign=partners&utm_source=kong). Moesif enables you to:
 
-- Kong is an open-source API gateway and middleware layer.
-- Moesif is an API analytics and monitoring service.
+* [Analyze customer API usage](https://www.moesif.com/features/api-analytics?utm_medium=docs&utm_campaign=partners&utm_source=kong)
+* [Get alerted of issues](https://www.moesif.com/features/api-monitoring?utm_medium=docs&utm_campaign=partners&utm_source=kong)
+* [Monetize APIs with usage-based billing](https://www.moesif.com/solutions/metered-api-billing?utm_medium=docs&utm_campaign=partners&utm_source=kong)
+* [Enforce quotas and contract terms](https://www.moesif.com/features/api-governance-rules?utm_medium=docs&utm_campaign=partners&utm_source=kong)
+* [Guide users](https://www.moesif.com/features/user-behavioral-emails?utm_medium=docs&utm_campaign=partners&utm_source=kong)
 
-This plugin supports automatic analysis of REST, GraphQL, and other APIs.
+This plugin supports automatic analysis of high-volume REST, GraphQL, XML/SOAP, and other APIs without adding latency.
 
 [Source Code on GitHub](https://github.com/Moesif/kong-plugin-moesif)
 
