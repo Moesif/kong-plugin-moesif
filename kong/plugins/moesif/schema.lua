@@ -29,7 +29,7 @@ return {
             keepalive = {default = 5000, type = "number"}
           },
           {
-            event_queue_size = {default = 100000, type = "number"}
+            event_queue_size = {default = 1000000, type = "number"}
           },
           {
             api_version = {default = "1.0", type = "string"}
