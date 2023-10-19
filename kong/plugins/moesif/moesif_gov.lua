@@ -168,11 +168,15 @@ function check_if_apply_rule_by_apply_to(hash_key, entity_rule_type, entity_id, 
     end
 end
 
+-- Function to check if an entity belongs to a cohort which has any gov rules enabled
 function is_entity_in_cohort(hash_key, entity_rule_type, entity_id, matched_rule_id)
     if type(entity_rules_hashes[hash_key]) == "table" and next(entity_rules_hashes[hash_key]) ~= nil
         and type(entity_rules_hashes[hash_key][entity_rule_type]) == "table" and next(entity_rules_hashes[hash_key][entity_rule_type]) then
-        return type(entity_rules_hashes[hash_key][entity_rule_type][entity_id]) == "table" and next(entity_rules_hashes[hash_key][entity_rule_type][entity_id])
-            and type(entity_rules_hashes[hash_key][entity_rule_type][entity_id][matched_rule_id]) == "table" and next(entity_rules_hashes[hash_key][entity_rule_type][entity_id][matched_rule_id])
+        return type(entity_rules_hashes[hash_key][entity_rule_type][entity_id]) == "table" and 
+                    entity_rules_hashes[hash_key][entity_rule_type][entity_id] ~= nil and 
+                    next(entity_rules_hashes[hash_key][entity_rule_type][entity_id]) ~= nil and 
+                    type(entity_rules_hashes[hash_key][entity_rule_type][entity_id][matched_rule_id]) == "table" and 
+                    entity_rules_hashes[hash_key][entity_rule_type][entity_id][matched_rule_id] ~= nil 
     end
     return false
 end
@@ -191,7 +195,13 @@ function generate_entity_rule_values_mapping(hash_key, entity_rules)
                 for _, rule in pairs(rule_values) do
                     local rule_id = rule["rules"]
                     if rule_id ~= nil then
-                        remapped_rule_values[rule_id] = rule["values"]
+                        -- If the gov rule response body has any merged tags, include the values else empty table
+                        -- so that we ensure all the gov rules are added to the map
+                        if rule["values"] ~= nil then 
+                            remapped_rule_values[rule_id] = rule["values"]
+                        else
+                            remapped_rule_values[rule_id] = {}
+                        end
                     end
                 end
                 entity_rule_values[entity_rule_type][entity_id] = remapped_rule_values
