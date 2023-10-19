@@ -162,7 +162,7 @@ function check_if_apply_rule_by_apply_to(hash_key, entity_rule_type, entity_id, 
         return true
     else
         if debug then
-            ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request as entity governance rule"  ..rule_id.. " because entity " ..entity_id.. " is in cohort["..is_in_cohort.."] and applied_to is set as "..applied_to)
+            ngx_log(ngx.DEBUG, "[moesif] Skipped blocking request as entity governance rule"  ..rule_id.. " because entity " ..entity_id.. " is in cohort["..tostring(is_in_cohort).."] and applied_to is set as "..applied_to)
         end
         return false
     end
