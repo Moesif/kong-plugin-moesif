@@ -181,14 +181,14 @@ function get_config_internal(conf)
         local raw_config_response = config_response:match("(%{.*})")
         if raw_config_response ~= nil then
           local response_body = cjson.decode(raw_config_response)
-          local config_tag = string.match(config_response, "ETag%s*:%s*(.-)\n")
+          local config_tag = string.match(config_response, "x%-moesif%-config%-etag:%s*([%-%d]+)")
 
           if config_tag ~= nil then
             conf["ETag"] = config_tag
           end
 
           -- Check if the governance rule is updated
-          local response_rules_etag = string.match(config_response, "Tag%s*:%s*(.-)\n")
+          local response_rules_etag = string.match(config_response, "x%-moesif%-rules%-tag:%s*([%-%d]+)")
             if response_rules_etag ~= nil then
             conf["rulesETag"] = response_rules_etag
           end
@@ -198,10 +198,7 @@ function get_config_internal(conf)
 
           local entity_rules = {}
           -- Create empty table for user/company rules
-          if entity_rules[hash_key] == nil then
-            entity_rules[hash_key] = {}
-            entity_rules_hashes[hash_key] = {}
-          end
+          entity_rules[hash_key] = {}
 
           -- Get governance rules
           if (governance_rules_etags[hash_key] == nil or (conf["rulesETag"] ~= governance_rules_etags[hash_key])) then
