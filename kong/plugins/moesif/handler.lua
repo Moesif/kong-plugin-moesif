@@ -1,7 +1,7 @@
 local serializer = require "kong.plugins.moesif.moesif_ser"
 local governance = require "kong.plugins.moesif.moesif_gov"
 local MoesifLogHandler = {
-  VERSION  = "2.0.9",
+  VERSION  = "2.0.10",
   PRIORITY = 5,
 }
 local log = require "kong.plugins.moesif.log"
