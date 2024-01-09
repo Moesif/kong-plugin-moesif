@@ -240,7 +240,7 @@ curl -X PATCH http://localhost:8001/plugins/{plugin id}
     --data “config.debug=true"
 ```
 
-##  Identifying users
+## Identifying users
 
 This plugin will automatically identify API users so you can associate API traffic to web traffic and create cross-platform funnel reports of your customer journey.
 The default algorithm covers most authorization designs and works as follows:
@@ -308,6 +308,12 @@ Key (cache_key)=(plugins:moesif::::) already exists., client: 127.0.0.1, server:
 ```
 
 Another reason plugin may not be running is if you didn't restart Kong after enabling the plugin. Make sure you restart your Kong instance.
+
+### Kong Gateway fails to recognize customer_id as user_id for each API call
+
+If you're using Kong Gateway with Moesif and having trouble linking the `customer_id` to `user_id` for API calls, it's likely related to authentication plugin configuration. Make sure you have the appropriate auth plugin enabled in Kong.
+
+API keys must be correctly utilized, and it's important to note that API calls are only identified as linked to a user if the route is a protected one. If you've already sent requests using an API key generated via Kong but can't see them automatically linked to the customer ID, check your auth plugin settings.
 
 ### Warning: Failed searching manifest when installing plugin
 
