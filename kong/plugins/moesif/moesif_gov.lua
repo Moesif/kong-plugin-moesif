@@ -1,5 +1,5 @@
 local _M = {}
-local req_get_method = ngx.req.get_method
+local req_get_method = kong.request.get_method
 local ngx_log = ngx.log
 local helper = require "kong.plugins.moesif.helpers"
 local regex_config_helper = require "kong.plugins.moesif.regex_config_helpers"

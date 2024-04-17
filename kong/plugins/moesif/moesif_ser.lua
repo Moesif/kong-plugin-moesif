@@ -1,5 +1,5 @@
 local ngx_now = ngx.now
-local req_get_method = ngx.req.get_method
+local req_get_method = kong.request.get_method
 local req_start_time = ngx.req.start_time
 local req_get_headers = ngx.req.get_headers
 local res_get_headers = ngx.resp and ngx.resp.get_headers or nil
