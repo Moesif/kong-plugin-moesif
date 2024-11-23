@@ -25,6 +25,8 @@ local timer_wakeup_seconds = 1.5
 local gr_helpers = require "kong.plugins.moesif.governance_helpers"
 entity_rules_hashes = {}
 
+local send_events_batch_counter = 0
+
 
 function dump(o)
   if type(o) == 'table' then
@@ -458,6 +460,12 @@ local function send_events_batch(premature)
     return
   end
 
+  send_events_batch_counter = send_events_batch_counter + 1
+  local pre_msg = "[moesif] MEMORYLEAK [" .. tostring(send_events_batch_counter) .. "]"
+
+  ngx_log(ngx.DEBUG, pre_msg .. " Begin send_events_batch start time - " .. tostring(getISOString(start_time / 1000)))
+
+
   -- local send_events_socket = ngx.socket.tcp()
   -- ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK Created send_events_socket TCP ")
   -- local global_socket_timeout = 10000
@@ -475,10 +483,10 @@ local function send_events_batch(premature)
       -- Temp hash key
       temp_hash_key = key
       local curr_time_check = (socket.gettime()*1000 - start_time)
-      ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK curr_time_check TIME - " .. tostring(curr_time_check) .. " start time - " .. tostring(getISOString(start_time / 1000)) .." for pid - ".. ngx.worker.pid())
+      ngx_log(ngx.DEBUG, pre_msg .. " curr_time_check TIME - " .. tostring(curr_time_check) .. " start time - " .. tostring(getISOString(start_time / 1000)) .." for pid - ".. ngx.worker.pid())
 
       if #queue > 0 and (curr_time_check <= math.min(configuration.max_callback_time_spent, timer_wakeup_seconds * 500)) then
-        ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK Sending events to Moesif")
+        ngx_log(ngx.DEBUG, pre_msg .. " Sending events to Moesif")
         -- Getting the configuration for this particular key
         -- local start_con_time = socket.gettime()*1000
         -- local pooled_socket, parsed_url = connect.get_connection(configuration.api_endpoint, "/v1/events/batch", configuration, send_events_socket)
@@ -502,7 +510,7 @@ local function send_events_batch(premature)
 
             if (#batch_events == configuration.batch_size) then
               local start_pay_time = socket.gettime()*1000
-                ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK send payload when batch is full with batch size count - " .. tostring(#batch_events) .." for pid - ".. ngx.worker.pid())
+                ngx_log(ngx.DEBUG, pre_msg .. " send payload when batch is full with batch size count - " .. tostring(#batch_events) .." for pid - ".. ngx.worker.pid())
                if pcall(send_payload, batch_events, configuration) then -- pooled_socket,
                 sent_event = sent_event + #batch_events
                else
@@ -514,7 +522,7 @@ local function send_events_batch(premature)
                  local event = table.remove(batch_events)
                  table.insert(queue, event)
                 until next(batch_events) == nil
-                ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK Inserted event back to the queue with batch size count - " .. tostring(#batch_events) .." for pid - ".. ngx.worker.pid())
+                ngx_log(ngx.DEBUG, pre_msg .. " Inserted event back to the queue with batch size count - " .. tostring(#batch_events) .." for pid - ".. ngx.worker.pid())
                 return
                end
                local end_pay_time = socket.gettime()*1000
@@ -524,7 +532,7 @@ local function send_events_batch(premature)
                batch_events = {}
             else if(#queue ==0 and #batch_events > 0) then
                 local start_pay1_time = socket.gettime()*1000
-                ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK Queue is empty but flushing the batch with batch size count - " .. tostring(#batch_events) .." for pid - ".. ngx.worker.pid())
+                ngx_log(ngx.DEBUG, pre_msg .. " Queue is empty but flushing the batch with batch size count - " .. tostring(#batch_events) .." for pid - ".. ngx.worker.pid())
                 
                 local pcallStatus, pCallError = pcall(send_payload, batch_events, configuration) -- pooled_socket, 
                 
@@ -533,9 +541,9 @@ local function send_events_batch(premature)
                 else
                   if configuration.debug then
                     local traceback = debug.traceback()
-                    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK Stack trace: " .. traceback)
-                    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK pCallError: " .. dump(pCallError))
-                    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK send payload pcall failed while sending events when events in batch is greather than 0, " .. " for pid - ".. ngx.worker.pid() .. "and error - ", pCallError)
+                    ngx_log(ngx.DEBUG, pre_msg .. " Stack trace: " .. traceback)
+                    ngx_log(ngx.DEBUG, pre_msg .. " pCallError: " .. dump(pCallError))
+                    ngx_log(ngx.DEBUG, pre_msg .. " send payload pcall failed while sending events when events in batch is greather than 0, " .. " for pid - ".. ngx.worker.pid() .. "and error - ", pCallError)
                   end
                   -- insert events back to actual queue and return, we ll send events again in next cycle
                   repeat
@@ -543,11 +551,11 @@ local function send_events_batch(premature)
                     table.insert(queue, event)
                   until next(batch_events) == nil
                   return
-                  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK Inserted event back to the queue when queue is empty with batch size count - " .. tostring(#batch_events) .." for pid - ".. ngx.worker.pid())
+                  ngx_log(ngx.DEBUG, pre_msg .. " Inserted event back to the queue when queue is empty with batch size count - " .. tostring(#batch_events) .." for pid - ".. ngx.worker.pid())
                 end
                 local end_pay1_time = socket.gettime()*1000
                 if configuration.debug then
-                  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK send payload with event count - " .. tostring(#batch_events) .. " took time - ".. tostring(end_pay1_time - start_pay1_time).." for pid - ".. ngx.worker.pid())
+                  ngx_log(ngx.DEBUG, pre_msg .. " send payload with event count - " .. tostring(#batch_events) .. " took time - ".. tostring(end_pay1_time - start_pay1_time).." for pid - ".. ngx.worker.pid())
                 end
                 batch_events = {}
               end
@@ -588,14 +596,14 @@ local function send_events_batch(premature)
 
 
         if configuration.debug then
-          ngx.log(ngx.DEBUG, "[moesif] MEMORYLEAK Received Event - "..tostring(rec_event).." and Sent Event - "..tostring(sent_event).." for pid - ".. ngx.worker.pid())
+          ngx.log(ngx.DEBUG, pre_msg .. " Received Event - "..tostring(rec_event).." and Sent Event - "..tostring(sent_event).." for pid - ".. ngx.worker.pid())
         end
       else
         has_events = false
         if #queue <= 0 then
-          ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK Queue is empty, no events to send " .. " for pid - ".. ngx.worker.pid())
+          ngx_log(ngx.DEBUG, pre_msg .. " Queue is empty, no events to send " .. " for pid - ".. ngx.worker.pid())
         else
-          ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK  Max callback time exceeds, skip sending events now ")
+          ngx_log(ngx.DEBUG, pre_msg .. "  Max callback time exceeds, skip sending events now ")
         end
       end
     end
@@ -608,7 +616,7 @@ local function send_events_batch(premature)
   -- Manually garbage collect every alternate cycle
   gc = gc + 1
   if gc == 8 then
-    ngx_log(ngx.INFO, "[moesif] MEMORYLEAK Calling GC at - "..tostring(socket.gettime()*1000).." in pid - ".. ngx.worker.pid())
+    ngx_log(ngx.INFO, pre_msg .. " Calling GC at - "..tostring(socket.gettime()*1000).." in pid - ".. ngx.worker.pid())
     collectgarbage()
     gc = 0
   end
@@ -618,7 +626,7 @@ local function send_events_batch(premature)
   if health_check == 150 then
     if rec_event ~= 0 then
       local event_perc = sent_event / rec_event
-      ngx_log(ngx.INFO, "[moesif] MEMORYLEAK heartbeat - "..tostring(rec_event).."/"..tostring(sent_event).."/"..tostring(sent_success).."/"..tostring(sent_failure).."/"..tostring(event_perc).." in pid - ".. ngx.worker.pid())
+      ngx_log(ngx.INFO, pre_msg .. " heartbeat - "..tostring(rec_event).."/"..tostring(sent_event).."/"..tostring(sent_success).."/"..tostring(sent_failure).."/"..tostring(event_perc).." in pid - ".. ngx.worker.pid())
     end
     health_check = 0
   end
@@ -630,7 +638,7 @@ local function send_events_batch(premature)
   if queue_hashes[temp_hash_key] ~= nil then
     length = #queue_hashes[temp_hash_key]
   end
-  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK send events batch took time - ".. tostring(endtime - start_time) .. " with sent event count - ".. tostring(sent_event) .." and sent event delta - " .. tostring(sent_event - prv_events).." for pid - ".. ngx.worker.pid().. " with queue size - ".. tostring(length))
+  ngx_log(ngx.DEBUG, pre_msg .. " send events batch took time - ".. tostring(endtime - start_time) .. " with sent event count - ".. tostring(sent_event) .." and sent event delta - " .. tostring(sent_event - prv_events).." for pid - ".. ngx.worker.pid().. " with queue size - ".. tostring(length))
 end
 
 -- Log to a Http end point.
