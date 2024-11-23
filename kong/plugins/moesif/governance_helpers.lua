@@ -21,11 +21,11 @@ RuleType = {
 -- @param `conf`     Configuration table, holds http endpoint details
 function _M.get_governance_rules(hash_key, conf)
 
-    local rules_socket = ngx.socket.tcp()
-    rules_socket:settimeout(conf.connect_timeout)
+    -- local rules_socket = ngx.socket.tcp()
+    -- rules_socket:settimeout(conf.connect_timeout)
   
     -- Fetch governance rules
-    local _, parsed_url = connect.get_connection(conf.api_endpoint, "/v1/rules", conf, rules_socket)
+    local rules_socket, parsed_url = connect.get_connection(conf.api_endpoint, "/v1/rules", conf)
 
     if type(parsed_url) == "table" and next(parsed_url) ~= nil and type(rules_socket) == "table" and next(rules_socket) ~= nil then
 
@@ -48,29 +48,33 @@ function _M.get_governance_rules(hash_key, conf)
         -- Read the response
         local governance_rules_response = helper.read_socket_data(rules_socket, conf)
 
+        -- retrun to the queue
+        connect.release_connection(rules_socket)
+
         if governance_rules_response ~= nil and governance_rules_response ~= '' then 
 
-            ok, err = rules_socket:setkeepalive(conf.keepalive)
-            if not ok then
-                if conf.debug then
-                    ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
-                end
+            -- REVIEW LATER
+            -- ok, err = rules_socket:setkeepalive(conf.keepalive)
+            -- if not ok then
+            --     if conf.debug then
+            --         ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
+            --     end
 
-                local close_ok, close_err = rules_socket:close()
-                if not close_ok then
-                    if conf.debug then
-                        ngx_log(ngx_log_ERR,"[moesif] Failed to manually close socket connection ", close_err)
-                    end
-                else
-                    if conf.debug then
-                        ngx_log(ngx.DEBUG,"[moesif] success closing socket connection manually ")
-                    end
-                end
-            else
-                if conf.debug then
-                    ngx_log(ngx.DEBUG,"[moesif] success keep-alive", ok)
-                end
-            end
+            --     local close_ok, close_err = rules_socket:close()
+            --     if not close_ok then
+            --         if conf.debug then
+            --             ngx_log(ngx_log_ERR,"[moesif] Failed to manually close socket connection ", close_err)
+            --         end
+            --     else
+            --         if conf.debug then
+            --             ngx_log(ngx.DEBUG,"[moesif] success closing socket connection manually ")
+            --         end
+            --     end
+            -- else
+            --     if conf.debug then
+            --         ngx_log(ngx.DEBUG,"[moesif] success keep-alive", ok)
+            --     end
+            -- end
 
             local regex_rules = {}
             local identified_user_rules = {}
