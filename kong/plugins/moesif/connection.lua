@@ -1,5 +1,3 @@
--- Morning Attempt 
-
 local _M = {}
 local helper = require "kong.plugins.moesif.helpers"
 local HTTPS = "https"
@@ -7,7 +5,7 @@ local ngx_log = ngx.log
 local ngx_log_ERR = ngx.ERR
 local session  -- This stores the SSL session for resumption
 local sessionerr
-local session_cache = {}
+-- local session_cache = {}
 local reuseSession
 
 -- Connection pool to hold reusable sockets
@@ -48,109 +46,31 @@ local function create_connection(api_endpoint, url_path, conf)
         return nil, err
     end
 
-    -- Perform SSL handshake if the URL scheme is HTTPS
-    -- if parsed_url.scheme == HTTPS then
-    --     -- Reuse SSL session if available for session resumption
-    --     session, sessionerr = sock:sslhandshake(session, host, false, { reuse = true })
-    --     if sessionerr then
-    --         ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL handshake failed with " .. host .. ": " .. tostring(sessionerr))
-    --         sock:close()
-    --         return nil, sessionerr
-    --     end
-    -- end
-
     if parsed_url.scheme == HTTPS then
-      local ssl_session = session_cache[host .. ":" .. port]
+      -- local ssl_session = session_cache[host .. ":" .. port]
       ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  GOT SESSION FROM THE CACHE ---- - ." .. dump(ssl_session) .." for pid - ".. ngx.worker.pid())
 
-      -- if session then 
-      --   ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE TRUE.")
-      --   session, sessionerr = sock:sslhandshake(session, host, false)
-      --   ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE TRUE, session - ." .. dump(session))
-      --   ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE TRUE, sessionerr - ." .. dump(sessionerr))
-      -- else 
-      --   ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE FALSE.")
-      --   session, sessionerr = sock:sslhandshake(true, host, false)
-      --   ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE FALSE, session - ." .. dump(session))
-      --   ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE FALSE, sessionerr - ." .. dump(sessionerr))
-      -- end
-
-
-      -- REVIEW
-      -- if session ~= nil then 
-      --   ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  REUSE EXISTING COONECTION." .." for pid - ".. ngx.worker.pid())
-      --   -- session, sessionerr = sock:sslhandshake(true, host, false)
-      --   session, sessionerr = sock:sslhandshake(session, host, false)
-      --   -- ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE FALSE, session - ." .. dump(session))
-      --   -- ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE FALSE, sessionerr - ." .. dump(sessionerr))
-      -- else 
-      --   ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  CREATE NEW CONNECTION." .." for pid - ".. ngx.worker.pid())
-      --   -- reuseSession, sessionerr = sock:sslhandshake(false, host, false)
-      --   session, sessionerr = sock:sslhandshake(nil, host, false)
-      --   -- ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE TRUE, session - ." .. dump(session))
-      --   -- ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE TRUE, reuseSession - ." .. dump(reuseSession))
-      --   -- ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE TRUE, sessionerr - ." .. dump(sessionerr))
-      -- end
-
-      -- if session ~= nil then 
-      --   ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  REUSE EXISTING COONECTION." .." for pid - ".. ngx.worker.pid())
-      --   -- session, sessionerr = sock:sslhandshake(true, host, false)
-      --   session, sessionerr = sock:sslhandshake(session, host, false)
-      --   -- ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE FALSE, session - ." .. dump(session))
-      --   -- ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE FALSE, sessionerr - ." .. dump(sessionerr))
-      -- else 
-      --   ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  CREATE NEW CONNECTION." .." for pid - ".. ngx.worker.pid())
-      --   -- reuseSession, sessionerr = sock:sslhandshake(false, host, false)
-      --   session, sessionerr = sock:sslhandshake(true, host, false)
-      --   -- ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE TRUE, session - ." .. dump(session))
-      --   -- ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE TRUE, reuseSession - ." .. dump(reuseSession))
-      --   -- ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE TRUE, sessionerr - ." .. dump(sessionerr))
-      -- end
-
-
-      if ssl_session then 
-        ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  REUSE EXISTING SESSION ---- ." .." for pid - ".. ngx.worker.pid())
-
-        session, sessionerr = sock:sslhandshake(ssl_session, host, false)
-            if sessionerr then
-                ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  Failed to reuse SSL session: " .. sessionerr)
-                sock:close()
-                return nil, sessionerr
-            end
+      if session ~= nil then 
+        ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  REUSE EXISTING COONECTION." .." for pid - ".. ngx.worker.pid())
+        session, sessionerr = sock:sslhandshake(session, host, false)
       else 
-        -- No session available, perform a new SSL handshake
-        ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  PERFORM NEW SSL HANDSHAKE ---- ." .." for pid - ".. ngx.worker.pid())
+        ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  CREATE NEW CONNECTION." .." for pid - ".. ngx.worker.pid())
         session, sessionerr = sock:sslhandshake(true, host, false)
-        if sessionerr then
-            ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK Failed to perform SSL handshake with " .. host .. ":" .. tostring(port) .. ": " .. sessionerr)
-            sock:close()
-            return nil, sessionerr
-        end
-
-        ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  ADDING SESSION TO THE CACHE ---" .." for pid - ".. ngx.worker.pid())
-        -- Store the session for future reuse
-        session_cache[host .. ":" .. port] = session
+        --   -- Store the session for future reuse
+      --   -- session_cache[host .. ":" .. port] = session
       end
-  
-      -- if sessionerr then
-      --   if conf.debug then 
-      --     ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK failed to do SSL handshake with " .. host .. ":" .. tostring(port) .. ": ", sessionerr)
-      --   end
-      --   sock:close()
-      --   session = nil
-      --   return nil, nil
-      -- end
     end
 
-    -- 10 mins REVIEW
-    -- sock:setkeepalive(600000)
-    -- sock:settimeout(conf.send_timeout)
+    if sessionerr then
+      if conf.debug then 
+        ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK failed to do SSL handshake with " .. host .. ":" .. tostring(port) .. ": ", sessionerr)
+      end
+      sock:close()
+      session = nil
+      return nil, nil
+    end
 
     sock:setoption("keepalive", true)
-
-    -- sock:setoption("keepalive", true)
-    -- sock:setoption("keepcnt", 3)  -- Retry 3 times if the connection is idle
-    -- sock:setoption("keepidle", 60)  -- Connection timeout threshold (e.g., 60 seconds of idle time)
 
     return sock, parsed_url
 end
@@ -163,18 +83,6 @@ local function acquire_connection(api_endpoint, url_path, conf)
     if #connection_pool > 0 then
         -- Reuse an existing connection from the pool
         local sock = table.remove(connection_pool)
-        ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK  ACQUIRED CONNECTION existing connection from the pool." .." for pid - ".. ngx.worker.pid())
-
-        -- DEBUG
-        -- -- Attempt to send a simple command to check if the socket is still valid
-        -- local ok, err = sock:send("PING\r\n")  -- Example command, adjust as necessary
-        -- if not ok then
-        --     ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK  Socket is INVALID !!!!!!!!!!!!!!, error: ", err .." for pid - ".. ngx.worker.pid())
-        --     -- sock:close()  -- Close the invalid socket
-        -- else
-        --     ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK  Socket is VALID !!!!!!!!!!!!!!, ok: ", dump(ok) .." for pid - ".. ngx.worker.pid())
-        -- end
-
         ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK  ACQUIRED CONNECTION existing connection from the pool." .." for pid - ".. ngx.worker.pid())
 
         -- CHECK IF CONNECTION IS ACTIVE, REFRESH
@@ -232,42 +140,10 @@ function _M.get_connection(api_endpoint, url_path, conf)
         return nil, nil
     end
 
-    -- Perform SSL handshake if necessary (for HTTPS)
-    -- if parsed_url.scheme == HTTPS then
-    --     session, sessionerr = sock:sslhandshake(session, parsed_url.host, false, { reuse = true })
-    --     if sessionerr then
-    --         ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  Failed to do SSL handshake with " .. parsed_url.host .. ": " .. tostring(sessionerr))
-    --         sock:close()
-    --         return nil, nil
-    --     end
-    -- end
-
-    -- if parsed_url.scheme == HTTPS then
-    --   if session ~= nil then 
-    --     ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE FALSE.")
-    --     session, sessionerr = sock:sslhandshake(session, host, false)
-    --   else 
-    --     ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  SSL HANDSHAKE REUSE TRUE.")
-    --     session, sessionerr = sock:sslhandshake(true, host, false)
-    --   end
-  
-    --   if sessionerr then
-    --     if conf.debug then 
-    --       ngx_log(ngx_log_ERR, "[moesif] failed to do SSL handshake with " .. host .. ":" .. tostring(port) .. ": ", sessionerr)
-    --     end
-    --     sock:close()
-    --     session = nil
-    --     return nil, nil
-    --   end
-    -- end
-
-    -- ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK  ABOUT TO RELEASE CONN. NECESSARY?.")
-    -- After using the connection, release it back to the pool for reuse
-    -- release_connection(sock)
-
     sock:settimeout(10000)
 
     return sock, parsed_url
 end
 
 return _M
+
