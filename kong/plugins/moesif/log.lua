@@ -55,7 +55,7 @@ local function generate_payload_without_compression(parsed_url, application_id, 
 end
 
 
-local function generate_post_payload(conf, parsed_url, access_token, message, application_id, debug, isCompressed)
+local function generate_post_payload(conf, parsed_url, access_token, message, application_id, debug, isCompressed, payloadSize)
   local payload = nil
   local body = message --cjson.encode(message)
 
@@ -67,9 +67,24 @@ local function generate_post_payload(conf, parsed_url, access_token, message, ap
 
 
       -- DO WE NEED TRANSFER-ENCODING:chunked? 
-      payload = string_format(
-        "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Encoding: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
-        "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, "deflate", #body, body)
+      -- payload = string_format(
+      --   "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Encoding: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
+      --   "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, "deflate", #body, body)
+
+      -- local chunk_header = string.format("%x\r\n", #body)  -- Convert size to hexadecimal
+
+
+      local payload = string.format("%x\r\n%s\r\n", #body, body)
+
+      -- payload = string_format(
+      --   "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Encoding: %s\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n%s%s\r\n",
+      --   "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, "deflate", chunk_header, body)
+
+      -- didn't work
+      --   payload = string_format(
+      --     "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Encoding: %s\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n",
+      --     "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin/"..plugin_version, "deflate"
+      -- )  
 
       -- ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK PAYLOAD WITH COMPRESS ----------------------------------: ")
       -- ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK PAYLOAD WITH COMPRESS parsed_url.path: ", dump(parsed_url.path))
@@ -146,6 +161,23 @@ local function set_keep_alive(pooled_socket, conf)
 end
 
 
+-- Send headers
+local function get_headers(sock, conf, parsed_url, application_id)
+
+  local headers = string_format(
+        "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Encoding: %s\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n",
+        "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, "deflate")
+
+  local bytes_sent, err = sock:send(headers .. "\r\n")
+
+  if err then 
+    ngx_log(ngx.DEBUG, " [moesif] MEMORYLEAK ", " ERROR SENDING HEADERS - " .. dump(err))
+  else
+    ngx_log(ngx.DEBUG, " [moesif] MEMORYLEAK ", "SUCCESS SENDING HEADERS " .. dump(bytes_sent))
+  end
+
+end
+
 local function send_in_chunks(batch_events, chunk_size, conf)
   local from = 1
 
@@ -184,6 +216,8 @@ local function send_in_chunks(batch_events, chunk_size, conf)
 
   local start_send_time = socket.gettime()*1000
 
+  get_headers(local_sock, conf, parsed_url, application_id)
+
   while from <= #payload do
       local to = math.min(from + chunk_size - 1, #payload)
       local chunk = string.sub(payload, from, to)
@@ -192,7 +226,10 @@ local function send_in_chunks(batch_events, chunk_size, conf)
       ngx_log(ngx.DEBUG, " [moesif] MEMORYLEAK ", "successfully created chunk - and length - " .. dump(#chunk))
 
 
-      local bytes_sent, err = local_sock:send(generate_post_payload(conf, parsed_url, access_token, chunk, application_id, debug, isCompressed) .. "\r\n")
+      local bytes_sent, err = local_sock:send(generate_post_payload(conf, parsed_url, access_token, chunk, application_id, debug, isCompressed, #payload) .. "\r\n")
+
+      ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK SEND bytes - ", dump(bytes_sent))
+      ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK SEND err - ", dump(err))
 
 
 
@@ -217,7 +254,7 @@ local function send_in_chunks(batch_events, chunk_size, conf)
             local_sock = reopen_sock
 
             -- local_sock:settimeout(conf.send_timeout)
-            local bytes_resent, err_resend = local_sock:send(generate_post_payload(conf, parsed_url, access_token, chunk, application_id, debug, isCompressed) .. "\r\n")
+            local bytes_resent, err_resend = local_sock:send(generate_post_payload(conf, parsed_url, access_token, chunk, application_id, debug, isCompressed, #payload) .. "\r\n")
             if not bytes_resent then 
               ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK failed to RE-SEND - ", err_resend)
             else
@@ -237,10 +274,108 @@ local function send_in_chunks(batch_events, chunk_size, conf)
       --set_keep_alive(pooled_socket, conf)
   end
 
+  local_sock:send("0\r\n\r\n")
+
   local end_send_time = socket.gettime()*1000
 
   if conf.debug then
     ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK send chunks took time - ".. tostring(end_send_time - start_send_time).." for pid - ".. ngx.worker.pid())
+  end
+
+  set_keep_alive(local_sock, conf)
+
+  -- Release the connection
+  connect.release_connection(local_sock)
+
+end
+
+
+-- Send in batch
+local function generate_post_payload_batch(conf, parsed_url, access_token, message, application_id, debug)
+  local payload = nil
+  local body = cjson.encode(message)
+  if not conf.disable_moesif_payload_compression then 
+    local ok, compressed_body = pcall(compress["CompressDeflate"], compress, body)
+    if not ok then
+      if debug then 
+        ngx_log(ngx_log_ERR, "[moesif] failed to compress body: ", compressed_body)
+      end
+      return generate_payload_without_compression(parsed_url, application_id, body)
+    else
+      if debug then 
+        ngx_log(ngx.DEBUG, " [moesif]  ", "successfully compressed body")
+      end
+      payload = string_format(
+        "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Encoding: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
+        "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, "deflate", #compressed_body, compressed_body)
+      return payload
+    end
+  else
+    if debug then 
+      ngx_log(ngx_log_ERR, "[moesif] No need to compress body: ", body)
+    end
+    return generate_payload_without_compression(parsed_url, application_id, body)
+  end
+end
+
+local function send_in_batch(batch_events, conf)
+  local from = 1
+
+
+  local application_id = conf.application_id
+  local access_token = conf.access_token
+  local debug = conf.debug
+  local isCompressed = nil
+
+  -- ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK SEND IN CHUNKS application_id  - ", application_id)
+  -- ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK SEND IN CHUNKS access_token  - ", access_token)
+  -- ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK SEND IN CHUNKS debug  - ", debug)
+
+  -- ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK Inside send in chunks - ", tostring(#batch_events) .. " and sock is - " .. dump(sock))
+
+
+  local payload, isCompressed = prepare_body(conf, batch_events, debug)
+
+
+  -- 
+  local start_con_time = socket.gettime()*1000
+  
+  local pooled_socket, parsed_url = connect.get_connection(conf.api_endpoint, "/v1/events/batch", conf)
+
+
+  local end_con_time = socket.gettime()*1000
+  if conf.debug then
+    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK get connection took time - ".. tostring(end_con_time - start_con_time).." for pid - ".. ngx.worker.pid())
+  end
+
+
+  -- ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK ENCODED BATCH_EVENTS - : and length - " .. dump(#payload))
+  
+  local local_sock = pooled_socket
+
+
+  local start_send_time = socket.gettime()*1000
+
+
+  local ok, err = local_sock:send(generate_post_payload_batch(conf, parsed_url, access_token, batch_events, application_id, debug) .. "\r\n")
+
+  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK SEND BATCH bytes - ", dump(ok))
+  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK SEND BATCH err - ", dump(err))
+
+  if not ok then
+    sent_failure = sent_failure + #batch_events
+    ngx_log(ngx.DEBUG, "[moesif] failed to send " .. tostring(#batch_events) .." events to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
+  else
+    eventsSentSuccessfully = true
+    sent_success = sent_success + #batch_events
+    ngx_log(ngx.DEBUG, "[moesif] Events sent successfully. Total number of events send - " ..  tostring(#batch_events) .. " in this batch for pid - ".. ngx.worker.pid() .. " ", ok)
+  end
+
+
+  local end_send_time = socket.gettime()*1000
+
+  if conf.debug then
+    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK send BATCH took time - ".. tostring(end_send_time - start_send_time).." for pid - ".. ngx.worker.pid())
   end
 
   set_keep_alive(local_sock, conf)
@@ -266,7 +401,9 @@ local function send_payload(batch_events, conf) -- sock,
 
   ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK PARSED URL BEFORE SENDING CHUNKS - ", dump(parsed_url))
 
-  send_in_chunks(batch_events, 65536, conf) -- 4096
+  -- send_in_chunks(batch_events, 65536, conf) -- 4096
+
+  send_in_batch(batch_events, conf)
 
   -- MOVE THIS 
   -- connect.release_connection(sock)
