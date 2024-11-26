@@ -22,7 +22,8 @@ description = {
 }
 
 dependencies = {
-  "lua-resty-http"
+  "lua-resty-http",
+  "lua-zlib"
 }
 
 build = {

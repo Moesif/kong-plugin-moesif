@@ -25,6 +25,7 @@ local timer_wakeup_seconds = 1.5
 local gr_helpers = require "kong.plugins.moesif.governance_helpers"
 entity_rules_hashes = {}
 local http = require("resty.http")
+local zlib = require 'zlib'
 
 
 function dump(o)
@@ -102,6 +103,14 @@ local function generate_post_payload(conf, parsed_url, access_token, message, ap
 end
 
 
+local function compress_data(input_string)
+  local compressor = zlib.deflate()
+  local compressed_data, eof, bytes_in, bytes_out = compressor(input_string, "finish")
+  -- ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK COMPRESSED DATA - ".. dump(compressed_data).." for pid - ".. ngx.worker.pid())
+  return compressed_data
+end
+
+
 local function send_post_request(conf, parsed_url, access_token, message, application_id, debug)
 
   -- ngx_log(ngx.DEBUG, "[moesif] INSIDE SEND POST REQUEST  " .. " for pid - ".. ngx.worker.pid())
@@ -124,24 +133,26 @@ local function send_post_request(conf, parsed_url, access_token, message, applic
 
   -- ngx_log(ngx.DEBUG, "[moesif] AFTER BODY ENCODED  " .. " for pid - ".. ngx.worker.pid())
 
-  -- if not conf.disable_moesif_payload_compression then 
+  if not conf.disable_moesif_payload_compression then 
     -- ngx_log(ngx.DEBUG, "[moesif] START COMPRESS BODY " .. " for pid - ".. ngx.worker.pid())
 
-    -- local start_compress_time = socket.gettime()*1000
+    local start_compress_time = socket.gettime()*1000
 
     -- local ok, compressed_body = pcall(compress["CompressDeflate"], compress, body)
 
-    -- local end_compress_time = socket.gettime()*1000
+    local ok, compressed_body = pcall(compress_data, body)
 
-    -- ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK ZLIB COMPRESS DEFLATE took time - ".. tostring(end_compress_time - start_compress_time).." for pid - ".. ngx.worker.pid())
+    local end_compress_time = socket.gettime()*1000
+
+    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK ZLIB COMPRESS DEFLATE took time - ".. tostring(end_compress_time - start_compress_time).." for pid - ".. ngx.worker.pid())
 
 
-    -- if not ok then
-    --   if debug then 
-    --     ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK FAILED to compress body: ", compressed_body)
-    --     return nil, "[moesif] MEMORYLEAK FAILED to compress body: "
-    --   end
-    -- else 
+    if not ok then
+      if debug then 
+        ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK FAILED to compress body: ", compressed_body)
+        return nil, "[moesif] MEMORYLEAK FAILED to compress body: "
+      end
+    else 
 
       -- ngx_log(ngx.DEBUG, "[moesif] COMPRESSION SUCCESS " .. " for pid - ".. ngx.worker.pid())
         -- Set default headers if not provided
@@ -157,7 +168,7 @@ local function send_post_request(conf, parsed_url, access_token, message, applic
 
         -- ngx_log(ngx.DEBUG, "[moesif] HEADER PREPARED " .. " for pid - ".. ngx.worker.pid())
 
-        -- ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK COMPRESSED LENGTH - ".. tostring(#compressed_body).." for pid - ".. ngx.worker.pid())
+        ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK COMPRESSED LENGTH - ".. tostring(#compressed_body).." for pid - ".. ngx.worker.pid())
 
         local create_client_time = socket.gettime()*1000
 
@@ -204,8 +215,8 @@ local function send_post_request(conf, parsed_url, access_token, message, applic
 
       -- TODO: Need to handle non compressed data 
 
-    -- end
-  -- end
+    end
+  end
 end
 
 
