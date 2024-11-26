@@ -22,6 +22,7 @@ description = {
 }
 
 dependencies = {
+  "lua-resty-http"
 }
 
 build = {
