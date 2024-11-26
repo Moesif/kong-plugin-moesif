@@ -9,7 +9,6 @@ local string_format = string.format
 local ngx_timer_every = ngx.timer.every
 local config_hashes = {}
 local has_events = false
-local compress = require "kong.plugins.moesif.lib_deflate"
 local helper = require "kong.plugins.moesif.helpers"
 local connect = require "kong.plugins.moesif.connection"
 local regex_config_helper = require "kong.plugins.moesif.regex_config_helpers"
@@ -42,16 +41,6 @@ function dump(o)
 end
 
 local function get_memory_usage(stage)
-  -- Get the current process ID
-  -- local pid = ngx.worker.pid()
-
-  -- -- Execute the ps command to get memory usage information
-  -- local handle = io.popen("ps -o pid,%mem,rss,vsz -p " .. pid)
-  -- local result = handle:read("*a")
-  -- handle:close()
-
-  -- return result
-
   local total_memory = collectgarbage("count")  -- Returns memory in KB
   ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK MEMORY USAGE: " .. stage .. " is - " .. total_memory .. " KB")
   return total_memory
@@ -62,44 +51,45 @@ end
 -- @param `parsed_url` contains the host details
 -- @param `body`  Message to be logged
 -- @return `payload` http payload
-local function generate_payload_without_compression(parsed_url, application_id, body)
-  local payload = nil
-  payload = string_format(
-    "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
-    "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, #body, body)
-  return payload
-end
+local function prepare_request(application_id, body, isCompressed)
+  local headers = {}
+  headers["Content-Type"] = "Keep-Alive"
+  headers["Content-Type"] = "application/json"
+  headers["X-Moesif-Application-Id"] = application_id
+  headers["User-Agent"] = "kong-plugin-moesif/"..plugin_version
+  headers["Content-Length"] = #body
+  if isCompressed then 
+    headers["Content-Encoding"] = "deflate"
+  end 
 
--- Generates http payload .
--- @param `method` http method to be used to send data
--- @param `parsed_url` contains the host details
--- @param `message`  Message to be logged
--- @return `payload` http payload
-local function generate_post_payload(conf, parsed_url, access_token, message, application_id, debug)
-  local payload = nil
-  local body = cjson.encode(message)
-  if not conf.disable_moesif_payload_compression then 
-    local ok, compressed_body = pcall(compress["CompressDeflate"], compress, body)
-    if not ok then
-      if debug then 
-        ngx_log(ngx_log_ERR, "[moesif] failed to compress body: ", compressed_body)
-      end
-      return generate_payload_without_compression(parsed_url, application_id, body)
-    else
-      if debug then 
-        ngx_log(ngx.DEBUG, " [moesif]  ", "successfully compressed body")
-      end
-      payload = string_format(
-        "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\nUser-Agent: %s\r\nContent-Encoding: %s\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s",
-        "POST", parsed_url.path, parsed_url.host, application_id, "kong-plugin-moesif/"..plugin_version, "deflate", #compressed_body, compressed_body)
-      return payload
-    end
-  else
-    if debug then 
-      ngx_log(ngx_log_ERR, "[moesif] No need to compress body: ", body)
-    end
-    return generate_payload_without_compression(parsed_url, application_id, body)
+  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK BODY LENGTH - ".. tostring(#body) .. " when isCompressed is - " .. tostring(isCompressed) .." for pid - ".. ngx.worker.pid())
+
+  -- Create http client
+  local create_client_time = socket.gettime()*1000
+  local httpc = http.new()
+  local end_client_time = socket.gettime()*1000
+  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK CREATE NEW CLIENT took time - ".. tostring(end_client_time - create_client_time).." for pid - ".. ngx.worker.pid())
+
+  -- Set a timeout for the request (in milliseconds)
+  httpc:set_timeout(5000)
+
+  local start_req_time = socket.gettime()*1000
+  -- Perform the POST request
+  local res, err = httpc:request_uri("https://api.moesif.net/v1/events/batch", {
+      method = "POST",
+      body = body,
+      headers = headers,
+      keepalive_timeout = 600000 -- 10min
+      --keepalive_pool -- default 30
+  })
+  local end_req_time = socket.gettime()*1000
+  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK SEND HTTP REQUEST took time - ".. tostring(end_req_time - start_req_time).." for pid - ".. ngx.worker.pid())
+
+  if not res then
+      ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK FAILED to send request: ", err)
+      return nil, "[moesif] MEMORYLEAK FAILED to send request: " .. (err or "unknown error")
   end
+  return true, "[moesif] MEMORYLEAK SUCCESSFULLY COMPLETED REQUEST "
 end
 
 
@@ -111,246 +101,70 @@ local function compress_data(input_string)
 end
 
 
-local function send_post_request(conf, parsed_url, access_token, message, application_id, debug)
-
-  -- ngx_log(ngx.DEBUG, "[moesif] INSIDE SEND POST REQUEST  " .. " for pid - ".. ngx.worker.pid())
-
-  -- ngx_log(ngx.DEBUG, "[moesif] AFTER CLIENT CREATED  " .. " for pid - ".. ngx.worker.pid())
+local function send_post_request(conf, message, application_id, debug)
 
   ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK ORIGINAL BODY LENGTH - ".. tostring(#message).." for pid - ".. ngx.worker.pid())
 
   local start_encode_time = socket.gettime()*1000
-
-  -- Encode the body if it's a table
   local body = cjson.encode(message)
-
   ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK ENCODED BODY LENGTH - ".. tostring(#body).." for pid - ".. ngx.worker.pid())
-
   local end_encode_time = socket.gettime()*1000
-
   ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK JSON ENCODE took time - ".. tostring(end_encode_time - start_encode_time).." for pid - ".. ngx.worker.pid())
 
 
-  -- ngx_log(ngx.DEBUG, "[moesif] AFTER BODY ENCODED  " .. " for pid - ".. ngx.worker.pid())
-
   if not conf.disable_moesif_payload_compression then 
-    -- ngx_log(ngx.DEBUG, "[moesif] START COMPRESS BODY " .. " for pid - ".. ngx.worker.pid())
 
     local start_compress_time = socket.gettime()*1000
-
-    -- local ok, compressed_body = pcall(compress["CompressDeflate"], compress, body)
-
     local ok, compressed_body = pcall(compress_data, body)
-
     local end_compress_time = socket.gettime()*1000
-
     ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK ZLIB COMPRESS DEFLATE took time - ".. tostring(end_compress_time - start_compress_time).." for pid - ".. ngx.worker.pid())
-
 
     if not ok then
       if debug then 
         ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK FAILED to compress body: ", compressed_body)
-        return nil, "[moesif] MEMORYLEAK FAILED to compress body: "
       end
+      -- Send uncompressed data
+      return prepare_request(application_id, body, false)
     else 
-
-      -- ngx_log(ngx.DEBUG, "[moesif] COMPRESSION SUCCESS " .. " for pid - ".. ngx.worker.pid())
-        -- Set default headers if not provided
-        local headers = {}
-        -- headers["Host"] = ""
-        headers["Content-Type"] = "Keep-Alive"
-        headers["Content-Type"] = "application/json"
-        headers["X-Moesif-Application-Id"] = application_id
-        headers["User-Agent"] = "kong-plugin-moesif/"..plugin_version
-        -- headers["Content-Encoding"] = "deflate"
-        -- headers["Content-Length"] = #compressed_body
-        headers["Content-Length"] = #body
-
-        -- ngx_log(ngx.DEBUG, "[moesif] HEADER PREPARED " .. " for pid - ".. ngx.worker.pid())
-
-        ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK COMPRESSED LENGTH - ".. tostring(#compressed_body).." for pid - ".. ngx.worker.pid())
-
-        local create_client_time = socket.gettime()*1000
-
-        local httpc = http.new()
-
-        local end_client_time = socket.gettime()*1000
-
-        ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK CREATE NEW CLIENT took time - ".. tostring(end_client_time - create_client_time).." for pid - ".. ngx.worker.pid())
-
-        -- Set a timeout for the request (in milliseconds)
-        httpc:set_timeout(5000)
-
-        -- ngx_log(ngx.DEBUG, "[moesif] TIMEOUT SET " .. " for pid - ".. ngx.worker.pid())
-
-        local start_req_time = socket.gettime()*1000
-
-        -- Perform the POST request
-        local res, err = httpc:request_uri("https://api.moesif.net/v1/events/batch", {
-          method = "POST",
-          -- body = compressed_body,
-          body = body,
-          headers = headers,
-          keepalive_timeout = 600000 -- 10min
-          -- keepalive_timeout -- default 60s
-          --keepalive_pool -- default 30
-      })
-
-        local end_req_time = socket.gettime()*1000
-
-        ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK SEND HTTP REQUEST took time - ".. tostring(end_req_time - start_req_time).." for pid - ".. ngx.worker.pid())
-
-      -- ngx_log(ngx.DEBUG, "[moesif] REQUEST MADE " .. " for pid - ".. ngx.worker.pid())
-
-      if not res then
-          return nil, "[moesif] MEMORYLEAK FAILED to send request: " .. (err or "unknown error")
-      end
-
-      -- -- Check the response status
-      -- if res.status >= 400 then
-      --     return nil, "[moesif] FAILED request failed with status " .. res.status
+      -- if debug then 
+      --   ngx_log(ngx.DEBUG, " [moesif]  ", "successfully compressed body")
       -- end
 
-      return "[moesif] MEMORYLEAK SUCCESSFULLY COMPLETED REQUEST ", nil
-
-      -- TODO: Need to handle non compressed data 
-
+      -- Send compressed data
+      return prepare_request(application_id, compressed_body, true)
     end
+  else 
+    -- Send uncompressed data
+    return prepare_request(application_id, body, false)
   end
-end
-
-
-local function send_post_request_streamed(conf, parsed_url, access_token, message, application_id, debug)
-
-  -- Encode the body if it's a table
-  local body = cjson.encode(message)
-
-  -- ngx_log(ngx.DEBUG, "[moesif] AFTER BODY ENCODED  " .. " for pid - ".. ngx.worker.pid())
-
-  if not conf.disable_moesif_payload_compression then 
-    -- ngx_log(ngx.DEBUG, "[moesif] START COMPRESS BODY " .. " for pid - ".. ngx.worker.pid())
-
-    local ok, compressed_body = pcall(compress["CompressDeflate"], compress, body)
-    if not ok then
-      if debug then 
-        ngx_log(ngx_log_ERR, "[moesif] FAILED to compress body: ", compressed_body)
-        return nil, "[moesif] FAILED to compress body: "
-      end
-    else 
-
-      -- ngx_log(ngx.DEBUG, "[moesif] COMPRESSION SUCCESS " .. " for pid - ".. ngx.worker.pid())
-        -- Set default headers if not provided
-        local headers = {}
-        headers["Host"] = "api.moesif.net"
-        headers["Content-Type"] = "Keep-Alive"
-        headers["Content-Type"] = "application/json"
-        headers["X-Moesif-Application-Id"] = application_id
-        headers["User-Agent"] = "kong-plugin-moesif/"..plugin_version
-        headers["Content-Encoding"] = "deflate"
-        headers["Content-Length"] = #compressed_body
-
-        -- ngx_log(ngx.DEBUG, "[moesif] HEADER PREPARED " .. " for pid - ".. ngx.worker.pid())
-
-        local create_client_time = socket.gettime()*1000
-
-        local httpc = http.new()
-
-        -- First establish a connection
-        local ok, err, ssl_session = httpc:connect({
-          scheme = "https",
-          host = "api.moesif.net",
-          port = 443,
-        })
-        
-        if not ok then
-          ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK connection failed: ", err)
-          return nil, "[moesif] MEMORYLEAK connection failed: " .. (err or "unknown error")
-        end
-
-        local end_client_time = socket.gettime()*1000
-
-        ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK CREATE NEW CLIENT took time - ".. tostring(end_client_time - create_client_time).." for pid - ".. ngx.worker.pid())
-
-        -- Set a timeout for the request (in milliseconds)
-        httpc:set_timeout(5000)
-
-        -- ngx_log(ngx.DEBUG, "[moesif] TIMEOUT SET " .. " for pid - ".. ngx.worker.pid())
-
-        -- Perform the POST request
-        local res, err = httpc:request({
-          path = "/v1/events/batch",
-          method = "POST",
-          headers = headers,
-          body = compressed_body
-          })
-          if not res then
-            ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK FAILED to send request: ", err)
-            return nil, "[moesif] MEMORYLEAK FAILED to send request: " .. (err or "unknown error")
-          end
-
-      -- ngx_log(ngx.DEBUG, "[moesif] REQUEST MADE " .. " for pid - ".. ngx.worker.pid())
-
-      if not res then
-          return nil, "[moesif] MEMORYLEAK FAILED to send request: " .. (err or "unknown error")
-      end
-
-      local ok, err = httpc:set_keepalive(600000, 30)
-      if not ok then
-          ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK FAILED to set keepalive: ", err)
-          return nil, "[moesif] MEMORYLEAK FAILED to set keepalive: "
-      end
-
-      -- -- Check the response status
-      -- if res.status >= 400 then
-      --     return nil, "[moesif] FAILED request failed with status " .. res.status
-      -- end
-
-      return "[moesif] MEMORYLEAK SUCCESSFULLY COMPLETED REQUEST ", nil
-
-    end
-  end
-
-  
 end
 
 -- Send Payload
 -- @param `sock`  Socket object
 -- @param `parsed_url`  Parsed Url
 -- @param `batch_events`  Events Batch
-local function send_payload(sock, parsed_url, batch_events, conf)
+local function send_payload(batch_events, conf)
   local application_id = conf.application_id
-  local access_token = conf.access_token
   local debug = conf.debug
   local eventsSentSuccessfully = false
 
   local start_send_time = socket.gettime()*1000
-  -- sock:settimeout(conf.send_timeout)
-  ngx_log(ngx.DEBUG, " [moesif]  ", "PARSED URL PATH - " .. parsed_url.path .. " Host - ".. parsed_url.host)
 
   -- TODO: Time taken by send_post_request function
   local start_post_req_time = socket.gettime()*1000
 
-  -- local ok, err = sock:send(generate_post_payload(conf, parsed_url, access_token, batch_events, application_id, debug) .. "\r\n")
   -- TODO: Single Shot request
-  local ok, err = send_post_request(conf, parsed_url, access_token, batch_events, application_id, debug)
-
-  -- TODO: Streamed request
-  -- local ok, err = send_post_request_streamed(conf, parsed_url, access_token, batch_events, application_id, debug)
-
+  local ok, err = send_post_request(conf, batch_events, application_id, debug)
   local end_post_req_time = socket.gettime()*1000
-
   ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK send request took time - ".. tostring(end_post_req_time - start_post_req_time).." for pid - ".. ngx.worker.pid())
-
-  -- ngx_log(ngx.DEBUG, " [moesif]  ", "SEND POST REQUEST RESPONSE OK - ", dump(ok))
-  -- ngx_log(ngx.DEBUG, " [moesif]  ", "SEND POST REQUEST RESPONSE Err - ", dump(err))
 
   if not ok then
     sent_failure = sent_failure + #batch_events
-    ngx_log(ngx.DEBUG, "[moesif] failed to send " .. tostring(#batch_events) .." events to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
+    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK failed to send " .. tostring(#batch_events) .." events " .. " in this batch for pid - ".. ngx.worker.pid()  .. " with error: ", err)
   else
     eventsSentSuccessfully = true
     sent_success = sent_success + #batch_events
-    ngx_log(ngx.DEBUG, "[moesif] Events sent successfully. Total number of events send - " ..  tostring(#batch_events) .. " in this batch for pid - ".. ngx.worker.pid() .. " ", ok)
+    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK Events sent successfully. Total number of events send - " ..  tostring(#batch_events) .. " in this batch for pid - ".. ngx.worker.pid() .. " ", ok)
   end
 
   -- TODO: Need to handle this 
@@ -376,8 +190,9 @@ local function send_payload(sock, parsed_url, batch_events, conf)
   --     end
   --   end
   -- end
+  
   local end_send_time = socket.gettime()*1000
-  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK send request took time - ".. tostring(end_send_time - start_send_time).." for pid - ".. ngx.worker.pid())
+  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK send payload function took time - ".. tostring(end_send_time - start_send_time).." for pid - ".. ngx.worker.pid())
   if eventsSentSuccessfully ~= true then
     error("failed to send events successfully")
   end
@@ -554,12 +369,9 @@ local function send_events_batch(premature)
     return
   end
 
+  -- TEMP or put behind debug
   get_memory_usage("BEFORE PROCESSING BATCH")
 
-
-  local send_events_socket = ngx.socket.tcp()
-  local global_socket_timeout = 10000
-  send_events_socket:settimeout(global_socket_timeout)
   -- Temp hash key for debug
   local temp_hash_key
   local batch_events = {}
@@ -575,96 +387,67 @@ local function send_events_batch(premature)
       if #queue > 0 and ((socket.gettime()*1000 - start_time) <= math.min(configuration.max_callback_time_spent, timer_wakeup_seconds * 500)) then
         ngx_log(ngx.DEBUG, "[moesif] Sending events to Moesif")
         -- Getting the configuration for this particular key
-        local start_con_time = socket.gettime()*1000
-        local _, parsed_url = connect.get_connection(configuration.api_endpoint, "/v1/events/batch", configuration, send_events_socket)
-        local end_con_time = socket.gettime()*1000
-        if configuration.debug then
-          ngx_log(ngx.DEBUG, "[moesif] get connection took time - ".. tostring(end_con_time - start_con_time).." for pid - ".. ngx.worker.pid())
-        end
-        if type(parsed_url) == "table" and next(parsed_url) ~= nil and type(send_events_socket) == "table" and next(send_events_socket) ~= nil then
-          local counter = 0
-          repeat
-            local event = table.remove(queue)
-            counter = counter + 1
-            table.insert(batch_events, event)
+        
+        local counter = 0
+        repeat
+          local event = table.remove(queue)
+          counter = counter + 1
+          table.insert(batch_events, event)
 
-            if (#batch_events == configuration.batch_size) then
-              local start_pay_time = socket.gettime()*1000
-               if pcall(send_payload, send_events_socket, parsed_url, batch_events, configuration) then
+          if (#batch_events == configuration.batch_size) then
+            local start_pay_time = socket.gettime()*1000
+              if pcall(send_payload, batch_events, configuration) then
+              sent_event = sent_event + #batch_events
+              else
+              if configuration.debug then
+                ngx_log(ngx.DEBUG, "[moesif] send payload pcall failed while sending events when events in batch is equal to config batch size, " .. " for pid - ".. ngx.worker.pid())
+              end
+              -- insert events back to actual queue and return, we ll send events again in next cycle
+              repeat
+                local event = table.remove(batch_events)
+                table.insert(queue, event)
+              until next(batch_events) == nil
+              return
+              end
+              local end_pay_time = socket.gettime()*1000
+              if configuration.debug then
+              ngx_log(ngx.DEBUG, "[moesif] send payload with event count - " .. tostring(#batch_events) .. " took time - ".. tostring(end_pay_time - start_pay_time).." for pid - ".. ngx.worker.pid())
+              end
+              batch_events = {}
+          else if(#queue ==0 and #batch_events > 0) then
+              local start_pay1_time = socket.gettime()*1000
+
+              local pcallStatus, pCallError = pcall(send_payload, batch_events, configuration)
+
+              if pcallStatus then
                 sent_event = sent_event + #batch_events
-               else
+              else
                 if configuration.debug then
-                  ngx_log(ngx.DEBUG, "[moesif] send payload pcall failed while sending events when events in batch is equal to config batch size, " .. " for pid - ".. ngx.worker.pid())
+                  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK pCallError: " .. dump(pCallError))
+                  ngx_log(ngx.DEBUG, "[moesif] send payload pcall failed while sending events when events in batch is greather than 0, " .. " for pid - ".. ngx.worker.pid().. " and error - ", pCallError)
                 end
                 -- insert events back to actual queue and return, we ll send events again in next cycle
                 repeat
-                 local event = table.remove(batch_events)
-                 table.insert(queue, event)
+                  local event = table.remove(batch_events)
+                  table.insert(queue, event)
                 until next(batch_events) == nil
                 return
-               end
-               local end_pay_time = socket.gettime()*1000
-               if configuration.debug then
-                ngx_log(ngx.DEBUG, "[moesif] send payload with event count - " .. tostring(#batch_events) .. " took time - ".. tostring(end_pay_time - start_pay_time).." for pid - ".. ngx.worker.pid())
-               end
-               batch_events = {}
-            else if(#queue ==0 and #batch_events > 0) then
-                local start_pay1_time = socket.gettime()*1000
-
-                local pcallStatus, pCallError = pcall(send_payload, send_events_socket, parsed_url, batch_events, configuration)
-
-                if pcallStatus then
-                  sent_event = sent_event + #batch_events
-                else
-                  if configuration.debug then
-                    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK pCallError: " .. dump(pCallError))
-                    ngx_log(ngx.DEBUG, "[moesif] send payload pcall failed while sending events when events in batch is greather than 0, " .. " for pid - ".. ngx.worker.pid().. " and error - ", pCallError)
-                  end
-                  -- insert events back to actual queue and return, we ll send events again in next cycle
-                  repeat
-                    local event = table.remove(batch_events)
-                    table.insert(queue, event)
-                  until next(batch_events) == nil
-                  return
-                end
-                local end_pay1_time = socket.gettime()*1000
-                if configuration.debug then
-                  ngx_log(ngx.DEBUG, "[moesif] send payload with event count - " .. tostring(#batch_events) .. " took time - ".. tostring(end_pay1_time - start_pay1_time).." for pid - ".. ngx.worker.pid())
-                end
-                batch_events = {}
               end
-            end
-          until counter == configuration.batch_size or next(queue) == nil
-
-          if #queue > 0 then
-            has_events = true
-          else
-            has_events = false
-          end
-
-          local ok, err = send_events_socket:setkeepalive()
-          if not ok then
-            if configuration.debug then
-              ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
-            end
-            local close_ok, close_err = send_events_socket:close()
-            if not close_ok then
+              local end_pay1_time = socket.gettime()*1000
               if configuration.debug then
-                ngx_log(ngx_log_ERR,"[moesif] Failed to manually close socket connection ", close_err)
+                ngx_log(ngx.DEBUG, "[moesif] send payload with event count - " .. tostring(#batch_events) .. " took time - ".. tostring(end_pay1_time - start_pay1_time).." for pid - ".. ngx.worker.pid())
               end
-            else
-              if configuration.debug then
-                ngx_log(ngx.DEBUG,"[moesif] success closing socket connection manually ")
-              end
+              batch_events = {}
             end
-          else
-            ngx_log(ngx.DEBUG,"[moesif] success keep-alive", ok)
           end
+        until counter == configuration.batch_size or next(queue) == nil
+
+        if #queue > 0 then
+          has_events = true
         else
-          if configuration.debug then
-            ngx_log(ngx.DEBUG, "[moesif] Failure to create socket connection for sending event to Moesif ")
-          end
+          has_events = false
         end
+        
         if configuration.debug then
           ngx.log(ngx.DEBUG, "[moesif] Received Event - "..tostring(rec_event).." and Sent Event - "..tostring(sent_event).." for pid - ".. ngx.worker.pid())
         end
@@ -710,6 +493,7 @@ local function send_events_batch(premature)
   end
   ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK send events batch took time - ".. tostring(endtime - start_time) .. " and sent event delta - " .. tostring(sent_event - prv_events).." for pid - ".. ngx.worker.pid().. " with queue size - ".. tostring(length))
 
+  -- TEMP or put behind debug
   get_memory_usage("AFTER PROCESSING BATCH")
 end
 
