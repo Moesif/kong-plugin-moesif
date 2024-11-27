@@ -100,12 +100,8 @@ return {
           {
             request_query_masks = {default = {}, type = "array", elements = typedefs.header_name}
           },
-          -- use debug flag instead
           {
-            enable_reading_send_event_response = {default = false, type = "boolean"}
-          },
-          {
-            -- TODO Change it to enable_compression
+            -- TODO Change it to enable_compression default to false
             disable_moesif_payload_compression = {default = true, type = "boolean"}
           },
         },

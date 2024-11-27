@@ -87,12 +87,7 @@ local function send_request(conf, application_id, body, isCompressed)
 
   if not res then
       ngx_log(ngx_log_ERR, "[moesif] failed to send request: ", err)
-      -- TODO: Figrue out 
-      -- return nil, "[moesif] MEMORYLEAK FAILED to send request: " .. (err or "unknown error")
-      return res, err
   end
-  -- return true, "[moesif] MEMORYLEAK SUCCESSFULLY COMPLETED REQUEST "
-  -- TODO: Figrue out 
   return res, err
 end
 
@@ -163,33 +158,18 @@ local function send_payload(batch_events, conf)
     ngx_log(ngx.DEBUG, "[moesif] send request took time - ".. tostring(end_post_req_time - start_post_req_time).." for pid - ".. ngx.worker.pid())
   end
 
-  if not (resp.status == 201) then
+  if not (resp) or (resp.status ~= 201) then
     sent_failure = sent_failure + #batch_events
-    ngx_log(ngx.DEBUG, "[moesif] failed to send " .. tostring(#batch_events) .." events " .. " in this batch for pid - ".. ngx.worker.pid()  .. " with status - ", tostring(resp.status))
+    eventsSentSuccessfully = false
+    local msg = "unavailable"
+    if resp then 
+      msg = tostring(resp.status)
+    end
+    ngx_log(ngx.DEBUG, "[moesif] failed to send " .. tostring(#batch_events) .. " events with response status - " .. msg .. " in this batch for pid - " .. ngx.worker.pid())
   else
     eventsSentSuccessfully = true
     sent_success = sent_success + #batch_events
-    -- TODO: Figure out if want to print status?
-    ngx_log(ngx.DEBUG, "[moesif] Events sent successfully. Total number of events send - " ..  tostring(#batch_events) .. " in this batch for pid - ".. ngx.worker.pid() .. " with status - ", tostring(resp.status))
-  end
-
-  -- TODO: Need to refactor or put inside debug
-  if conf.enable_reading_send_event_response then
-    ngx_log(ngx.DEBUG, "[moesif] As reading send event response is enabled, we are reading the response " .. " for pid - ".. ngx.worker.pid())
-    
-    if conf.debug then
-      if resp ~= nil then
-        if resp.status == 200 or resp.status == 201 then
-          eventsSentSuccessfully = true
-        else
-          eventsSentSuccessfully = false
-        end
-        ngx_log(ngx.DEBUG,"[moesif] send event response after sending " .. tostring(#batch_events) ..  " event - ", resp.body .. " with status - " .. tostring(resp.status))
-      else
-        eventsSentSuccessfully = false
-        ngx_log(ngx.DEBUG,"[moesif] send event response is nil ")
-      end
-    end
+    ngx_log(ngx.DEBUG, "[moesif] Events sent successfully. Total number of events send - " ..  tostring(#batch_events) .. " in this batch for pid - ".. ngx.worker.pid())
   end
   
   local end_send_time = socket.gettime()*1000
