@@ -23,7 +23,7 @@ local merge_config = 0
 local timer_wakeup_seconds = 1.5
 local gr_helpers = require "kong.plugins.moesif.governance_helpers"
 entity_rules_hashes = {}
-local http = require("resty.http")
+local http = require "resty.http"
 local zlib = require 'zlib'
 
 
@@ -51,7 +51,7 @@ end
 -- @param `parsed_url` contains the host details
 -- @param `body`  Message to be logged
 -- @return `payload` http payload
-local function prepare_request(application_id, body, isCompressed)
+local function prepare_request(conf, application_id, body, isCompressed)
   local headers = {}
   headers["Content-Type"] = "Keep-Alive"
   headers["Content-Type"] = "application/json"
@@ -71,32 +71,40 @@ local function prepare_request(application_id, body, isCompressed)
   ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK CREATE NEW CLIENT took time - ".. tostring(end_client_time - create_client_time).." for pid - ".. ngx.worker.pid())
 
   -- Set a timeout for the request (in milliseconds)
-  httpc:set_timeout(5000)
+  httpc:set_timeout(conf.send_timeout)
 
   local start_req_time = socket.gettime()*1000
   -- Perform the POST request
-  local res, err = httpc:request_uri("https://api.moesif.net/v1/events/batch", {
+  local res, err = httpc:request_uri(conf.api_endpoint.."/v1/events/batch", {
       method = "POST",
       body = body,
       headers = headers,
       keepalive_timeout = 600000 -- 10min
-      --keepalive_pool -- default 30
   })
   local end_req_time = socket.gettime()*1000
   ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK SEND HTTP REQUEST took time - ".. tostring(end_req_time - start_req_time).." for pid - ".. ngx.worker.pid())
 
+
+  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK SEND REQUEST RESPONSE BODY - : ", dump(res))
+  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK SEND REQUEST ERR - : ", dump(err))
+
   if not res then
       ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK FAILED to send request: ", err)
-      return nil, "[moesif] MEMORYLEAK FAILED to send request: " .. (err or "unknown error")
+      -- TODO: Figrue out 
+      -- return nil, "[moesif] MEMORYLEAK FAILED to send request: " .. (err or "unknown error")
+      return res, err
   end
-  return true, "[moesif] MEMORYLEAK SUCCESSFULLY COMPLETED REQUEST "
+
+  ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK SUCCESS to send request: ")
+  -- return true, "[moesif] MEMORYLEAK SUCCESSFULLY COMPLETED REQUEST "
+  -- TODO: Figrue out 
+  return res, err
 end
 
 
 local function compress_data(input_string)
   local compressor = zlib.deflate()
   local compressed_data, eof, bytes_in, bytes_out = compressor(input_string, "finish")
-  -- ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK COMPRESSED DATA - ".. dump(compressed_data).." for pid - ".. ngx.worker.pid())
   return compressed_data
 end
 
@@ -112,6 +120,8 @@ local function send_post_request(conf, message, application_id, debug)
   ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK JSON ENCODE took time - ".. tostring(end_encode_time - start_encode_time).." for pid - ".. ngx.worker.pid())
 
 
+  -- TODO: Change here
+  -- if conf.enable_compression then 
   if not conf.disable_moesif_payload_compression then 
 
     local start_compress_time = socket.gettime()*1000
@@ -124,18 +134,18 @@ local function send_post_request(conf, message, application_id, debug)
         ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK FAILED to compress body: ", compressed_body)
       end
       -- Send uncompressed data
-      return prepare_request(application_id, body, false)
+      return prepare_request(conf, application_id, body, false)
     else 
       -- if debug then 
       --   ngx_log(ngx.DEBUG, " [moesif]  ", "successfully compressed body")
       -- end
 
       -- Send compressed data
-      return prepare_request(application_id, compressed_body, true)
+      return prepare_request(conf, application_id, compressed_body, true)
     end
   else 
     -- Send uncompressed data
-    return prepare_request(application_id, body, false)
+    return prepare_request(conf, application_id, body, false)
   end
 end
 
@@ -155,41 +165,46 @@ local function send_payload(batch_events, conf)
 
   -- TODO: Single Shot request
   local ok, err = send_post_request(conf, batch_events, application_id, debug)
+
+  ngx_log(ngx.DEBUG,"[moesif] MEMORYLEAK SEND_POST_REQ Ok -  ", dump(ok))
+  ngx_log(ngx.DEBUG,"[moesif] MEMORYLEAK SEND_POST_REQ ERR - ", dump(err))
+
   local end_post_req_time = socket.gettime()*1000
   ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK send request took time - ".. tostring(end_post_req_time - start_post_req_time).." for pid - ".. ngx.worker.pid())
 
-  if not ok then
+  if not (ok.status == 200 or ok.status == 201) then
     sent_failure = sent_failure + #batch_events
-    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK failed to send " .. tostring(#batch_events) .." events " .. " in this batch for pid - ".. ngx.worker.pid()  .. " with error: ", err)
+    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK failed to send " .. tostring(#batch_events) .." events " .. " in this batch for pid - ".. ngx.worker.pid()  .. " with status - ", tostring(ok.status))
   else
     eventsSentSuccessfully = true
     sent_success = sent_success + #batch_events
-    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK Events sent successfully. Total number of events send - " ..  tostring(#batch_events) .. " in this batch for pid - ".. ngx.worker.pid() .. " ", ok)
+    -- TODO: Figure out if want to print status?
+    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK Events sent successfully. Total number of events send - " ..  tostring(#batch_events) .. " in this batch for pid - ".. ngx.worker.pid() .. " with status - ", tostring(ok.status))
   end
 
-  -- TODO: Need to handle this 
-  -- if conf.enable_reading_send_event_response then
-  --   ngx_log(ngx.DEBUG, "[moesif] As reading send event response is enabled, we are reading the response " .. " for pid - ".. ngx.worker.pid())
-  --   local send_event_response, send_event_response_error = helper.read_socket_data(sock, conf)
-  --   if conf.debug then
-  --     if send_event_response_error == nil then
-  --       if send_event_response ~= nil then
-  --         if string.match(send_event_response, "200") or string.match(send_event_response, "201") then
-  --           eventsSentSuccessfully = true
-  --         else
-  --           eventsSentSuccessfully = false
-  --         end
-  --         ngx_log(ngx.DEBUG,"[moesif] send event response after sending " .. tostring(#batch_events) ..  " event - ", send_event_response)
-  --       else
-  --         eventsSentSuccessfully = false
-  --         ngx_log(ngx.DEBUG,"[moesif] send event response is nil ")
-  --       end
-  --     else
-  --       eventsSentSuccessfully = false
-  --       ngx_log(ngx.DEBUG,"[moesif] error while reading response after sending " .. tostring(#batch_events) ..  " event - ", send_event_response_error)
-  --     end
-  --   end
-  -- end
+  ngx_log(ngx.DEBUG,"[moesif] MEMORYLEAK enable_reading_send_event_response -  " .. tostring(conf.enable_reading_send_event_response))
+  -- ngx_log(ngx.DEBUG,"[moesif] MEMORYLEAK conf -  ", dump(conf))
+
+  -- TODO: Need to test
+  if conf.enable_reading_send_event_response then
+    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK As reading send event response is enabled, we are reading the response " .. " for pid - ".. ngx.worker.pid())
+    
+    if conf.debug then
+      if ok ~= nil then
+        if ok.status == 200 or ok.status == 201 then
+          ngx_log(ngx.DEBUG,"[moesif] MEMORYLEAK Event SENT SUCCESS -  TRUE ")
+          eventsSentSuccessfully = true
+        else
+          ngx_log(ngx.DEBUG,"[moesif] MEMORYLEAK Event SENT SUCCESS -  FALSE ")
+          eventsSentSuccessfully = false
+        end
+        ngx_log(ngx.DEBUG,"[moesif] MEMORYLEAK send event response after sending " .. tostring(#batch_events) ..  " event - ", ok.body .. " with status - " .. tostring(ok.status))
+      else
+        eventsSentSuccessfully = false
+        ngx_log(ngx.DEBUG,"[moesif] MEMORYLEAK send event response is nil ")
+      end
+    end
+  end
   
   local end_send_time = socket.gettime()*1000
   ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK send payload function took time - ".. tostring(end_send_time - start_send_time).." for pid - ".. ngx.worker.pid())
@@ -204,126 +219,111 @@ end
 -- @param `conf`     Configuration table, holds http endpoint details
 function get_config_internal(conf)
 
-  local config_socket = ngx.socket.tcp()
-  config_socket:settimeout(conf.connect_timeout)
 
-  local _, parsed_url = connect.get_connection(conf.api_endpoint, "/v1/config", conf, config_socket)
+  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK CONF BEFORE FETCHING - " , dump(conf))
 
-  if type(parsed_url) == "table" and next(parsed_url) ~= nil and type(config_socket) == "table" and next(config_socket) ~= nil then
+  local httpc = http.new()
 
-    -- Prepare the payload
-    local payload = string_format(
-      "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Keep-Alive\r\nX-Moesif-Application-Id: %s\r\n",
-      "GET", parsed_url.path, parsed_url.host, conf.application_id)
+  -- Single-shot requests use the `request_uri` interface.
+  -- Read the response
+  local config_response, config_response_error = httpc:request_uri(conf.api_endpoint.."/v1/config", {
+      method = "GET",
+      headers = {
+          ["Connection"] = "Keep-Alive",
+          ["X-Moesif-Application-Id"] = conf.application_id
+      },
+  })
 
-    -- Send the request
-    local ok, err = config_socket:send(payload .. "\r\n")
-    if not ok then
-      if conf.debug then 
-        ngx_log(ngx_log_ERR, "[moesif] failed to send data to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err)
-      end
-    else
-      if conf.debug then
-        ngx_log(ngx.DEBUG, "[moesif] Successfully send request to fetch the application configuration " , ok)
-      end
-    end
+  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK CONFIG REPONSE - " , dump(config_response))
+  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK CONFIG REPONSE ERR - " , dump(config_response_error))
 
-    -- Read the response
-    local config_response, config_response_error = helper.read_socket_data(config_socket, conf)
+  if config_response_error == nil then 
+    -- Update the application configuration
+    if config_response ~= nil then
 
-    if config_response_error == nil then 
-      -- Update the application configuration
-      if config_response ~= nil then
+      local raw_config_response = config_response.body
 
-        local ok_config, err_config = config_socket:setkeepalive(conf.keepalive)
-        if not ok_config then
-          if conf.debug then
-            ngx_log(ngx_log_ERR, "[moesif] failed to keepalive to " .. parsed_url.host .. ":" .. tostring(parsed_url.port) .. ": ", err_config)
-          end
-          local close_ok, close_err = config_socket:close()
-          if not close_ok then
-              if conf.debug then
-                  ngx_log(ngx_log_ERR,"[moesif] Failed to manually close socket connection ", close_err)
-              end
-          else
-              if conf.debug then
-                  ngx_log(ngx.DEBUG,"[moesif] success closing socket connection manually ")
-              end
-          end
-        else
-          if conf.debug then
-            ngx_log(ngx.DEBUG,"[moesif] success keep-alive", ok_config)
-          end
+      ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK RAW CONFIG REPONSE - " , dump(raw_config_response))
+
+      if raw_config_response ~= nil then
+        local response_body = cjson.decode(raw_config_response)
+
+        ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK RAW CONFIG DECODED  - " , dump(response_body))
+
+        ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK RAW CONFIG HEADERS  - " , dump(config_response.headers))
+
+        local config_tag =  config_response.headers["x-moesif-config-etag"] --string.match(config_response, "x%-moesif%-config%-etag:%s*([%-%d]+)")
+
+        ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK RAW CONFIG ETAG  - " , dump(config_tag))
+
+        if config_tag ~= nil then
+          conf["ETag"] = config_tag
         end
 
-        local raw_config_response = config_response:match("(%{.*})")
-        if raw_config_response ~= nil then
-          local response_body = cjson.decode(raw_config_response)
-          local config_tag = string.match(config_response, "x%-moesif%-config%-etag:%s*([%-%d]+)")
+        -- Check if the governance rule is updated
+        local response_rules_etag = config_response.headers["x-moesif-rules-tag"] --string.match(config_response, "x%-moesif%-rules%-tag:%s*([%-%d]+)")
 
-          if config_tag ~= nil then
-            conf["ETag"] = config_tag
+        ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK RAW RULES ETAG  - " , dump(response_rules_etag))
+
+          if response_rules_etag ~= nil then
+          conf["rulesETag"] = response_rules_etag
+        end
+
+        -- Hash key of the config application Id
+        local hash_key = string.sub(conf.application_id, -10)
+
+        local entity_rules = {}
+        -- Create empty table for user/company rules
+        entity_rules[hash_key] = {}
+
+        -- Get governance rules
+        if (governance_rules_etags[hash_key] == nil or (conf["rulesETag"] ~= governance_rules_etags[hash_key])) then
+          gr_helpers.get_governance_rules(hash_key, conf)
+        end
+
+        if (response_body["user_rules"] ~= nil) then
+          entity_rules[hash_key]["user_rules"] = response_body["user_rules"]
+        end
+
+        if (response_body["company_rules"] ~= nil) then
+            entity_rules[hash_key]["company_rules"] = response_body["company_rules"]
+        end
+
+        -- generate entity merge tag values mapping
+        entity_rules_hashes[hash_key] = generate_entity_rule_values_mapping(hash_key, entity_rules)
+
+        if (conf["sample_rate"] ~= nil) and (response_body ~= nil) then
+          if (response_body["user_sample_rate"] ~= nil) then
+            conf["user_sample_rate"] = response_body["user_sample_rate"]
           end
 
-          -- Check if the governance rule is updated
-          local response_rules_etag = string.match(config_response, "x%-moesif%-rules%-tag:%s*([%-%d]+)")
-            if response_rules_etag ~= nil then
-            conf["rulesETag"] = response_rules_etag
+          if (response_body["company_sample_rate"] ~= nil) then
+            conf["company_sample_rate"] = response_body["company_sample_rate"]
           end
 
-          -- Hash key of the config application Id
-          local hash_key = string.sub(conf.application_id, -10)
-
-          local entity_rules = {}
-          -- Create empty table for user/company rules
-          entity_rules[hash_key] = {}
-
-          -- Get governance rules
-          if (governance_rules_etags[hash_key] == nil or (conf["rulesETag"] ~= governance_rules_etags[hash_key])) then
-            gr_helpers.get_governance_rules(hash_key, conf)
+          if (response_body["regex_config"] ~= nil) then
+            conf["regex_config"] = response_body["regex_config"]
           end
 
-          if (response_body["user_rules"] ~= nil) then
-            entity_rules[hash_key]["user_rules"] = response_body["user_rules"]
-          end
-
-          if (response_body["company_rules"] ~= nil) then
-              entity_rules[hash_key]["company_rules"] = response_body["company_rules"]
-          end
-
-          -- generate entity merge tag values mapping
-          entity_rules_hashes[hash_key] = generate_entity_rule_values_mapping(hash_key, entity_rules)
-
-          if (conf["sample_rate"] ~= nil) and (response_body ~= nil) then
-            if (response_body["user_sample_rate"] ~= nil) then
-              conf["user_sample_rate"] = response_body["user_sample_rate"]
-            end
-
-            if (response_body["company_sample_rate"] ~= nil) then
-              conf["company_sample_rate"] = response_body["company_sample_rate"]
-            end
-
-            if (response_body["regex_config"] ~= nil) then
-              conf["regex_config"] = response_body["regex_config"]
-            end
-
-            if (response_body["sample_rate"] ~= nil) then
-              conf["sample_rate"] = response_body["sample_rate"]
-            end
-          end
-        else
-          if conf.debug then
-            ngx_log(ngx.DEBUG, "[moesif] raw config response is nil so could not decode it, the config response is - " .. tostring(config_response))
+          if (response_body["sample_rate"] ~= nil) then
+            conf["sample_rate"] = response_body["sample_rate"]
           end
         end
       else
-        ngx_log(ngx.DEBUG, "[moesif] application config is nil ")
+        if conf.debug then
+          ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK raw config response is nil so could not decode it, the config response is - " .. tostring(config_response))
+        end
       end
     else
-      ngx_log(ngx.DEBUG,"[moesif] error while reading response after fetching app config - ", config_response_error)
+      ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK application config is nil ")
     end
-    return config_response
+  else
+    ngx_log(ngx.DEBUG,"[moesif] MEMORYLEAK error while reading response after fetching app config - ", config_response_error)
   end
+  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK CONFIG REPONSE BEFORE RETURNING - " , dump(config_response))
+  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK CONF BEFORE RETURNING - " , dump(conf))
+  return config_response
+
 end
 
 -- Get App Config function
@@ -340,22 +340,22 @@ function get_config(premature, hash_key)
   local ok, err = pcall(get_config_internal, conf)
   if not ok then
     if conf.debug then
-      ngx_log(ngx_log_ERR, "[moesif] failed to get config internal ", err)
+      ngx_log(ngx_log_ERR, "[moesif] MEMORYLEAK failed to get config internal ", err)
     end
   else
     if conf.debug then
-      ngx_log(ngx.DEBUG, "[moesif] get config internal success " , ok)
+      ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK get config internal success " , ok)
     end
   end
 
   local sok, serr = ngx_timer_at(60, get_config, hash_key)
   if not sok then
     if conf.debug then
-      ngx_log(ngx.ERR, "[moesif] Error when scheduling the get config : ", serr)
+      ngx_log(ngx.ERR, "[moesif] MEMORYLEAK Error when scheduling the get config : ", serr)
     end
   else
     if conf.debug then
-      ngx_log(ngx.DEBUG, "[moesif] success when scheduling the get config ")
+      ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK success when scheduling the get config ")
     end
   end
 end

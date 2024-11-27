@@ -23,7 +23,7 @@ return {
             connect_timeout = {default = 1000, type = "number"}
           },
           {
-            send_timeout = {default = 2000, type = "number"}
+            send_timeout = {default = 5000, type = "number"}
           },
           {
             keepalive = {default = 5000, type = "number"}
@@ -62,7 +62,7 @@ return {
             response_header_masks = {default = {}, type = "array", elements = typedefs.header_name}
           },
           {
-            batch_size = {default = 200, type = "number", elements = typedefs.header_name}
+            batch_size = {default = 50, type = "number", elements = typedefs.header_name}
           },
           {
             disable_transaction_id = {default = false, type = "boolean"}
@@ -100,11 +100,13 @@ return {
           {
             request_query_masks = {default = {}, type = "array", elements = typedefs.header_name}
           },
+          -- use debug flag instead
           {
             enable_reading_send_event_response = {default = false, type = "boolean"}
           },
           {
-            disable_moesif_payload_compression = {default = false, type = "boolean"}
+            -- TODO Change it to enable_compression
+            disable_moesif_payload_compression = {default = true, type = "boolean"}
           },
         },
       },
