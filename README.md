@@ -29,7 +29,10 @@ If the luarocks utility is installed in your system (this is likely the case if 
 luarocks install --server=http://luarocks.org/manifests/moesif kong-plugin-moesif
 ```
 
-> Make sure the `unzip` package is installed on your machine. For example when using the apt package manager, run `apt-get update; apt-get install curl vim unzip`.
+>- Make sure the `unzip` package is installed on your machine. 
+>  - For example when using the apt package manager, run `apt-get update; apt-get install curl vim unzip`.
+>- Make sure the `lua-zlib` lib dependencies (git, zlib1g-dev, gcc) have been installed on the system.
+>  - For example when using the apt package manager, run `apt-get update; apt-get install git zlib1g-dev gcc`.
 
 ### 2. Update your loaded plugins list
 In your `kong.conf`, append `moesif` to the `plugins` field (or `custom_plugins` if old version of Kong). Make sure the field is not commented out.
@@ -170,7 +173,7 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 |config.api_endpoint|https://api.moesif.net|https://api.moesif.net|URL for the Moesif API.|
 |config.timeout (deprecated)|1000|1000|Timeout in milliseconds when connecting/sending data to Moesif.|
 |config.connect_timeout|1000|1000|Timeout in milliseconds when connecting to Moesif.|
-|config.send_timeout|2000|2000|Timeout in milliseconds when sending data to Moesif.|
+|config.send_timeout|5000|5000|Timeout in milliseconds when sending data to Moesif.|
 |config.keepalive|5000|5000|Value in milliseconds that defines for how long an idle connection will live before being closed.|
 |config.api_version|1.0|1.0|API Version you want to tag this request with.|
 |config.disable_capture_request_body|false|false|Disable logging of request body.|
@@ -179,7 +182,7 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 |config.request_body_masks|{}|{}|An array of request body fields to mask.|
 |config.response_header_masks|{}|{}|An array of response header fields to mask.|
 |config.response_body_masks|{}|{}|An array of response body fields to mask.|
-|config.batch_size|200|200|Maximum batch size when sending to Moesif.|
+|config.batch_size|50|50|Maximum batch size when sending to Moesif.|
 |config.user_id_header|''|nil|Request or response header to use for identifying the User. [See identifying users](#identifying-users).|
 |config.company_id_header|''|nil|Request or response header to use for identifying the Company. [See identifying companies](#identifying-companies).|
 |config.authorization_header_name|authorization|authorization|Request header containing a `Bearer` or `Basic` token to extract user id. [See identifying users](#identifying-users). Also, supports a comma separated string. We will check headers in order like `"X-Api-Key,Authorization"`.|
@@ -192,6 +195,7 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 |config.request_query_masks|{}|{}|An array of query string params fields to mask.|
 |config.event_queue_size|100000|100000|Maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skips adding new to event to queue to prevent memory overflow.|
 |config.debug|false|false|If set to true, prints internal log messages for debugging integration issues.|
+|enable_compression|false|If set to true, requests are compressed before sending to Moesif.|
 
 ## Updating Plugin Version
 
