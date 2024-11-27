@@ -1,10 +1,10 @@
 local _M = {}
 local cjson = require "cjson"
 local helper = require "kong.plugins.moesif.helpers"
+local connect = require "kong.plugins.moesif.connection"
 local string_format = string.format
 local ngx_log = ngx.log
 local ngx_log_ERR = ngx.ERR
-local http = require "resty.http"
 governance_rules_hashes = {}
 regex_governance_rules_hashes = {}
 governance_rules_etags = {}
@@ -21,19 +21,10 @@ RuleType = {
 -- @param `conf`     Configuration table, holds http endpoint details
 function _M.get_governance_rules(hash_key, conf)
     -- Create http client
-    local httpc = http.new()
-
-    -- Set a timeout for the request (in milliseconds)
-    httpc:set_timeout(conf.connect_timeout)
+    local httpc = connect.get_client(conf)
 
     -- Send the request to fetch governance rules
-    local governance_rules_response, governance_rules_error = httpc:request_uri(conf.api_endpoint.."/v1/rules", {
-        method = "GET",
-        headers = {
-            ["Connection"] = "Keep-Alive",
-            ["X-Moesif-Application-Id"] = conf.application_id
-        },
-    })
+    local governance_rules_response, governance_rules_error = connect.get_request(httpc, conf, "/v1/rules")
 
     if governance_rules_response ~= nil and governance_rules_response ~= '' then 
 

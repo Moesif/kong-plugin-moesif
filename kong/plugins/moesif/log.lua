@@ -9,6 +9,7 @@ local ngx_timer_every = ngx.timer.every
 local config_hashes = {}
 local has_events = false
 local regex_config_helper = require "kong.plugins.moesif.regex_config_helpers"
+local connect = require "kong.plugins.moesif.connection"
 local socket = require "socket"
 local gc = 0
 local health_check = 0
@@ -24,20 +25,6 @@ entity_rules_hashes = {}
 local http = require "resty.http"
 local zlib = require 'zlib'
 
-
-function dump(o)
-  if type(o) == 'table' then
-     local s = '{ '
-     for k,v in pairs(o) do
-        if type(k) ~= 'number' then k = '"'..k..'"' end
-        s = s .. '['..k..'] = ' .. dump(v) .. ','
-     end
-     return s .. '} '
-  else
-     return tostring(o)
-  end
-end
-
 -- Function to log the total memory in use by Lua, measured in kilobytes.
 -- This includes all memory allocated for Lua objects, such as tables, strings, and functions.
 local function get_memory_usage(stage)
@@ -46,41 +33,19 @@ local function get_memory_usage(stage)
   return total_memory
 end
 
-
 -- Function to send http request
-local function send_request(conf, application_id, body, isCompressed)
-  local headers = {}
-  headers["Connection"] = "Keep-Alive"
-  headers["Content-Type"] = "application/json"
-  headers["X-Moesif-Application-Id"] = application_id
-  headers["User-Agent"] = "kong-plugin-moesif/"..plugin_version
-  headers["Content-Length"] = #body
-  if isCompressed then 
-    headers["Content-Encoding"] = "deflate"
-  end 
+local function send_request(conf, body, isCompressed)
+
   if conf.debug then
     ngx_log(ngx.DEBUG, "[moesif] Body Length - ".. tostring(#body) .. " when isCompressed is - " .. tostring(isCompressed) .." for pid - ".. ngx.worker.pid())
   end
 
   -- Create http client
-  local create_client_time = socket.gettime()*1000
-  local httpc = http.new()
-  local end_client_time = socket.gettime()*1000
-  if conf.debug then
-    ngx_log(ngx.DEBUG, "[moesif] Create new client took time - ".. tostring(end_client_time - create_client_time).." for pid - ".. ngx.worker.pid())
-  end
-
-  -- Set a timeout for the request (in milliseconds)
-  httpc:set_timeout(conf.send_timeout)
+  local httpc = connect.get_client(conf)
 
   local start_req_time = socket.gettime()*1000
   -- Perform the POST request
-  local res, err = httpc:request_uri(conf.api_endpoint.."/v1/events/batch", {
-      method = "POST",
-      body = body,
-      headers = headers,
-      keepalive_timeout = keepalive_timeout-- 10min
-  })
+  local res, err = connect.post_request(httpc, conf, "/v1/events/batch", body, isCompressed)
   local end_req_time = socket.gettime()*1000
   if conf.debug then
     ngx_log(ngx.DEBUG, "[moesif] Send HTTP request took time - ".. tostring(end_req_time - start_req_time).." for pid - ".. ngx.worker.pid())
@@ -100,7 +65,7 @@ local function compress_data(input_string)
 end
 
 -- Function to prepare request and send to moesif
-local function prepare_request(conf, batch_events, application_id, debug)
+local function prepare_request(conf, batch_events, debug)
 
   -- Encode batch_events
   local start_encode_time = socket.gettime()*1000
@@ -135,14 +100,13 @@ local function prepare_request(conf, batch_events, application_id, debug)
     payload = body
   end
 
-  return send_request(conf, application_id, payload, false)
+  return send_request(conf, payload, false)
 end
 
 -- Send Payload
 -- @param `batch_events`  Events Batch
 -- @param `conf`  Configuration table, holds http endpoint details
 local function send_payload(batch_events, conf)
-  local application_id = conf.application_id
   local debug = conf.debug
   local eventsSentSuccessfully = false
 
@@ -150,7 +114,7 @@ local function send_payload(batch_events, conf)
 
   local start_post_req_time = socket.gettime()*1000
   -- Send post request
-  local resp, err = prepare_request(conf, batch_events, application_id, debug)
+  local resp, err = prepare_request(conf, batch_events, debug)
   local end_post_req_time = socket.gettime()*1000
   if conf.debug then
     ngx_log(ngx.DEBUG, "[moesif] send request took time - ".. tostring(end_post_req_time - start_post_req_time).." for pid - ".. ngx.worker.pid())
@@ -184,19 +148,10 @@ end
 function get_config_internal(conf)
 
   -- Create http client
-  local httpc = http.new()
-
-  -- Set a timeout for the request (in milliseconds)
-  httpc:set_timeout(conf.connect_timeout)
+  local httpc = connect.get_client(conf)
 
   -- Send the request to fetch config
-  local config_response, config_response_error = httpc:request_uri(conf.api_endpoint.."/v1/config", {
-      method = "GET",
-      headers = {
-          ["Connection"] = "Keep-Alive",
-          ["X-Moesif-Application-Id"] = conf.application_id
-      },
-  })
+  local config_response, config_response_error = connect.get_request(httpc, conf, "/v1/config")
 
   if config_response_error == nil then 
     -- Update the application configuration
@@ -438,7 +393,10 @@ local function send_events_batch(premature)
   if queue_hashes[temp_hash_key] ~= nil then
     length = #queue_hashes[temp_hash_key]
   end
-  ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK send events batch took time - ".. tostring(endtime - start_time) .. " and sent event delta - " .. tostring(sent_event - prv_events).." for pid - ".. ngx.worker.pid().. " with queue size - ".. tostring(length))
+  local sent_event_delta = (sent_event - prv_events)
+  if sent_event_delta > 0 then 
+    ngx_log(ngx.DEBUG, "[moesif] send events batch took time - ".. tostring(endtime - start_time) .. " and sent event delta - " .. tostring(sent_event_delta) .. " with queue size - " .. tostring(length) .." for pid - ".. ngx.worker.pid())
+  end
 
   -- Compute memory after the batch is processed
   -- get_memory_usage("After processing batch")
