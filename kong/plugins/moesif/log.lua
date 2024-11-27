@@ -215,6 +215,7 @@ function get_config_internal(conf)
             conf["sample_rate"] = response_body["sample_rate"]
           end
         end
+        ngx_log(ngx.DEBUG, "[moesif] received app config response successfully ")
       else
         if conf.debug then
           ngx_log(ngx.DEBUG, "[moesif] raw config response is nil so could not decode it, the config response is - " .. tostring(config_response))
@@ -356,9 +357,13 @@ local function send_events_batch(premature)
       else
         has_events = false
         if #queue <= 0 then
-          ngx_log(ngx.DEBUG, "[moesif] Queue is empty, no events to send " .. " for pid - ".. ngx.worker.pid())
+          if configuration.debug then
+            ngx_log(ngx.DEBUG, "[moesif] Queue is empty, no events to send " .. " for pid - ".. ngx.worker.pid())
+          end
         else
-          ngx_log(ngx.DEBUG, "[moesif] Max callback time exceeds, skip sending events now ")
+          if configuration.debug then
+            ngx_log(ngx.DEBUG, "[moesif] Max callback time exceeds, skip sending events now ")
+          end
         end
       end
     end
