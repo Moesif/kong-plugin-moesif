@@ -17,29 +17,17 @@ RuleType = {
     REGEX = "regex"
 }
 
-function dump(o)
-    if type(o) == 'table' then
-       local s = '{ '
-       for k,v in pairs(o) do
-          if type(k) ~= 'number' then k = '"'..k..'"' end
-          s = s .. '['..k..'] = ' .. dump(v) .. ','
-       end
-       return s .. '} '
-    else
-       return tostring(o)
-    end
-  end
-
 -- Get Governance Rules function
 -- @param hash_key   Hash key of the config application Id
 -- @param `conf`     Configuration table, holds http endpoint details
 function _M.get_governance_rules(hash_key, conf)
-
-
-    -- Fetch governance rules
+    -- Create http client
     local httpc = http.new()
 
-    -- Prepare the payload, Send the request, and Read the response
+    -- Set a timeout for the request (in milliseconds)
+    httpc:set_timeout(conf.connect_timeout)
+
+    -- Send the request to fetch governance rules
     local governance_rules_response, governance_rules_error = httpc:request_uri(conf.api_endpoint.."/v1/rules", {
         method = "GET",
         headers = {
@@ -47,9 +35,6 @@ function _M.get_governance_rules(hash_key, conf)
             ["X-Moesif-Application-Id"] = conf.application_id
         },
     })
-
-    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK GOV RULES REPONSE - " , dump(governance_rules_response))
-    ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK GOV RULES REPONSE ERR - " , dump(governance_rules_error))
 
     if governance_rules_response ~= nil and governance_rules_response ~= '' then 
 
@@ -59,10 +44,8 @@ function _M.get_governance_rules(hash_key, conf)
         local identified_company_rules = {}
         local unidentified_company_rules = {}
         -- Get the governance rules
-        local response_body = cjson.decode(governance_rules_response.body) -- governance_rules_response:match("(%[.*])")
+        local response_body = cjson.decode(governance_rules_response.body)
         
-        ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK GOV RULES REPONSE BODY - " , dump(response_body))
-
         local graphQLRule = false
         for _, rule in pairs(response_body) do
             if rule.block then
@@ -107,11 +90,7 @@ function _M.get_governance_rules(hash_key, conf)
         graphQlRule_hashes[hash_key] = graphQLRule
 
         -- Read the Response tag
-        ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK GOV RULES HEADERS  - " , dump(governance_rules_response.headers))
-        local rules_etag =  governance_rules_response.headers["x-moesif-rules-tag"] -- string.match(governance_rules_response, "Tag%s*:%s*(.-)\n")
-
-        ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK GOV RULES ETAG  - " , dump(rules_etag))
-
+        local rules_etag =  governance_rules_response.headers["x-moesif-rules-tag"]
         governance_rules_etags[hash_key] = rules_etag
     end
 
