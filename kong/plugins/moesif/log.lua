@@ -76,6 +76,7 @@ local function prepare_request(conf, batch_events, debug)
   end
 
   local payload = nil
+  local isCompressed = conf.enable_compression
 
   if conf.enable_compression then 
     local start_compress_time = socket.gettime()*1000
@@ -90,6 +91,7 @@ local function prepare_request(conf, batch_events, debug)
         ngx_log(ngx_log_ERR, "[moesif] failed to compress body: ", compressed_body)
       end
       payload = body
+      isCompressed = false -- if failed to compress, send uncompressed data
     else 
       if debug then 
         ngx_log(ngx.DEBUG, " [moesif] successfully compressed body")
@@ -100,7 +102,7 @@ local function prepare_request(conf, batch_events, debug)
     payload = body
   end
 
-  return send_request(conf, payload, false)
+  return send_request(conf, payload, isCompressed)
 end
 
 -- Send Payload
@@ -134,8 +136,10 @@ local function send_payload(batch_events, conf)
     ngx_log(ngx.DEBUG, "[moesif] Events sent successfully. Total number of events send - " ..  tostring(#batch_events) .. " in this batch for pid - ".. ngx.worker.pid())
   end
   
-  local end_send_time = socket.gettime()*1000
-  ngx_log(ngx.DEBUG, "[moesif] send payload function took time - ".. tostring(end_send_time - start_send_time).." for pid - ".. ngx.worker.pid())
+  if conf.debug then
+    local end_send_time = socket.gettime()*1000
+    ngx_log(ngx.DEBUG, "[moesif] send payload function took time - ".. tostring(end_send_time - start_send_time).." for pid - ".. ngx.worker.pid())
+  end
   if eventsSentSuccessfully ~= true then
     error("failed to send events successfully")
   end
@@ -290,7 +294,9 @@ local function send_events_batch(premature)
       -- Temp hash key
       temp_hash_key = key
       if #queue > 0 and ((socket.gettime()*1000 - start_time) <= math.min(configuration.max_callback_time_spent, timer_wakeup_seconds * 500)) then
-        ngx_log(ngx.DEBUG, "[moesif] Sending events to Moesif")
+        if configuration.debug then
+          ngx_log(ngx.DEBUG, "[moesif] Sending events to Moesif")
+        end
         -- Getting the configuration for this particular key
         
         local counter = 0
