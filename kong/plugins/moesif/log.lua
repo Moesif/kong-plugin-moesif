@@ -110,6 +110,8 @@ local function prepare_request(conf, batch_events, application_id, debug)
     ngx_log(ngx.DEBUG, "[moesif] Json Encode took time - ".. tostring(end_encode_time - start_encode_time).." for pid - ".. ngx.worker.pid())
   end
 
+  local payload = nil
+
   if conf.enable_compression then 
     local start_compress_time = socket.gettime()*1000
     local ok, compressed_body = pcall(compress_data, body)
@@ -122,19 +124,18 @@ local function prepare_request(conf, batch_events, application_id, debug)
       if debug then 
         ngx_log(ngx_log_ERR, "[moesif] failed to compress body: ", compressed_body)
       end
-      -- Send uncompressed data
-      return send_request(conf, application_id, body, false)
+      payload = body
     else 
       if debug then 
         ngx_log(ngx.DEBUG, " [moesif] successfully compressed body")
       end
-      -- Send compressed data
-      return send_request(conf, application_id, compressed_body, true)
+      payload = compressed_body
     end
   else 
-    -- Send uncompressed data
-    return send_request(conf, application_id, body, false)
+    payload = body
   end
+
+  return send_request(conf, application_id, payload, false)
 end
 
 -- Send Payload
