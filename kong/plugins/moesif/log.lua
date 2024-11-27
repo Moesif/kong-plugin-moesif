@@ -18,6 +18,7 @@ local sent_success = 0
 local sent_failure = 0
 local merge_config = 0
 local timer_wakeup_seconds = 1.5
+local keepalive_timeout = 600000
 local gr_helpers = require "kong.plugins.moesif.governance_helpers"
 entity_rules_hashes = {}
 local http = require "resty.http"
@@ -78,7 +79,7 @@ local function send_request(conf, application_id, body, isCompressed)
       method = "POST",
       body = body,
       headers = headers,
-      keepalive_timeout = 600000 -- 10min
+      keepalive_timeout = keepalive_timeout-- 10min
   })
   local end_req_time = socket.gettime()*1000
   if conf.debug then
