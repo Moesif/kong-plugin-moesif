@@ -37,7 +37,6 @@ build = {
     ["kong.plugins.moesif.log"] = "kong/plugins/moesif/log.lua",
     ["kong.plugins.moesif.moesif_ser"] = "kong/plugins/moesif/moesif_ser.lua",
     ["kong.plugins.moesif.helpers"] = "kong/plugins/moesif/helpers.lua",
-    ["kong.plugins.moesif.connection"] = "kong/plugins/moesif/connection.lua",
     ["kong.plugins.moesif.client_ip"] = "kong/plugins/moesif/client_ip.lua",
     ["kong.plugins.moesif.zzlib"] = "kong/plugins/moesif/zzlib.lua",
     ["kong.plugins.moesif.base64"] = "kong/plugins/moesif/base64.lua"

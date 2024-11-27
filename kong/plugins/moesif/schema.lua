@@ -101,8 +101,7 @@ return {
             request_query_masks = {default = {}, type = "array", elements = typedefs.header_name}
           },
           {
-            -- TODO Change it to enable_compression default to false
-            disable_moesif_payload_compression = {default = true, type = "boolean"}
+            enable_compression = {default = false, type = "boolean"}
           },
         },
       },

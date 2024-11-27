@@ -109,10 +109,7 @@ local function prepare_request(conf, batch_events, application_id, debug)
     ngx_log(ngx.DEBUG, "[moesif] Json Encode took time - ".. tostring(end_encode_time - start_encode_time).." for pid - ".. ngx.worker.pid())
   end
 
-  -- TODO: Change here
-  -- if conf.enable_compression then 
-  if not conf.disable_moesif_payload_compression then 
-
+  if conf.enable_compression then 
     local start_compress_time = socket.gettime()*1000
     local ok, compressed_body = pcall(compress_data, body)
     local end_compress_time = socket.gettime()*1000
@@ -130,7 +127,6 @@ local function prepare_request(conf, batch_events, application_id, debug)
       if debug then 
         ngx_log(ngx.DEBUG, " [moesif] successfully compressed body")
       end
-
       -- Send compressed data
       return send_request(conf, application_id, compressed_body, true)
     end
@@ -320,9 +316,8 @@ local function send_events_batch(premature)
     return
   end
 
-  -- TODO: 
   -- Compute memory before the batch is processed
-  get_memory_usage("Before Processing batch")
+  -- get_memory_usage("Before Processing batch")
 
   -- Temp hash key for debug
   local temp_hash_key
@@ -443,9 +438,8 @@ local function send_events_batch(premature)
   end
   ngx_log(ngx.DEBUG, "[moesif] MEMORYLEAK send events batch took time - ".. tostring(endtime - start_time) .. " and sent event delta - " .. tostring(sent_event - prv_events).." for pid - ".. ngx.worker.pid().. " with queue size - ".. tostring(length))
 
-  -- TODO: 
   -- Compute memory after the batch is processed
-  get_memory_usage("After processing batch")
+  -- get_memory_usage("After processing batch")
 end
 
 -- Log to a Http end point.
