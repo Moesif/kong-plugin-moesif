@@ -10,6 +10,10 @@ This plugin supports automatic analysis of REST, GraphQL, and other APIs.
 
 ## How to Install
 
+### Prerequisite
+>- Make sure the `lua-zlib` lib dependencies (git, zlib1g-dev, gcc) have been installed on the system.
+   >  - For example when using the apt package manager, run `apt-get update; apt-get install git zlib1g-dev gcc`.
+
 ### Create a ConfigMap with the Moesif Plugin Code
 
 You'll need to clone the [kong-moesif-plugin](https://github.com/Moesif/kong-plugin-moesif){:target="_blank" rel="noopener"} and navigate to the `kong/plugins` directory to create a configMap using 
@@ -104,7 +108,7 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 |api_endpoint|https://api.moesif.net|URL for the Moesif API.|
 |timeout (deprecated)|1000|Timeout in milliseconds when connecting/sending data to Moesif.|
 |connect_timeout|1000|Timeout in milliseconds when connecting to Moesif.|
-|send_timeout|2000|Timeout in milliseconds when sending data to Moesif.|
+|send_timeout|5000|Timeout in milliseconds when sending data to Moesif.|
 |keepalive|5000|Value in milliseconds that defines for how long an idle connection will live before being closed.|
 |api_version|1.0|API Version you want to tag this request with.|
 |disable_capture_request_body|false|Disable logging of request body.|
@@ -113,7 +117,7 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 |request_body_masks|{}|An array of request body fields to mask.|
 |response_header_masks|{}|An array of response header fields to mask.|
 |response_body_masks|{}|An array of response body fields to mask.|
-|batch_size|200|Maximum batch size when sending to Moesif.|
+|batch_size|50|Maximum batch size when sending to Moesif.|
 |user_id_header||Request or response header to use for identifying the User. [See identifying users](#identifying-users).|
 |company_id_header||Request or response header to use for identifying the Company. [See identifying companies](#identifying-companies).|
 |authorization_header_name|authorization|Request header containing a `Bearer` or `Basic` token to extract user id. [See identifying users](#identifying-users). Also, supports a comma separated string. We will check headers in order like `"X-Api-Key,Authorization"`.|
@@ -126,6 +130,7 @@ The Moesif Kong Plugin has a variety of options for things like data scrubbing a
 |request_query_masks|{}|An array of query string params fields to mask.|
 |event_queue_size|5000|Maximum number of events to hold in queue before sending to Moesif. In case of network issues when not able to connect/send event to Moesif, skips adding new to event to queue to prevent memory overflow.|
 |debug|false|If set to true, prints internal log messages for debugging integration issues.|
+|enable_compression|false|If set to true, requests are compressed before sending to Moesif.|
 
 
 ##  Identifying users

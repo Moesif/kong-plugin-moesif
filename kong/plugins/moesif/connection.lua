@@ -1,51 +1,56 @@
 local _M = {}
-local helper = require "kong.plugins.moesif.helpers"
-local HTTPS = "https"
+
+local socket = require "socket"
+local http = require "resty.http"
 local ngx_log = ngx.log
-local ngx_log_ERR = ngx.ERR
-local session 
-local sessionerr
+local keepalive_timeout = 600000
 
--- Create new connection
--- @param `api_endpoint` The base API
--- @param `url_path`  The path like /events
--- @param `conf`  Configuration table, holds http endpoint details
--- @return `sock` Socket object
--- @return `parsed_url` a table with host details like domain name, port, path etc
-function _M.get_connection(api_endpoint, url_path, conf, sock)
-  local parsed_url = helper.parse_url(api_endpoint..url_path)
-  local host = parsed_url.host
-  local port = tonumber(parsed_url.port)
-
-  sock:settimeout(conf.connect_timeout)
-  local ok, err = sock:connect(host, port)
-  if not ok then
-    if conf.debug then 
-      ngx_log(ngx_log_ERR, "[moesif] failed to connect to " .. host .. ":" .. tostring(port) .. ": ", err)
-    end
-    return
-  else
+function _M.get_client(conf)
+    -- Create http client
+    local create_client_time = socket.gettime()*1000
+    local httpc = http.new()
+    local end_client_time = socket.gettime()*1000
     if conf.debug then
-      ngx_log(ngx.DEBUG, "[moesif] Successfully created connection " , ok)
+        ngx_log(ngx.DEBUG, "[moesif] Create new client took time - ".. tostring(end_client_time - create_client_time).." for pid - ".. ngx.worker.pid())
     end
-  end
+    return httpc
+end
 
-  if parsed_url.scheme == HTTPS then
-    if session ~= nil then 
-      session, sessionerr = sock:sslhandshake(session, host, false)
-    else 
-      session, sessionerr = sock:sslhandshake(true, host, false)
+function _M.get_request(httpc, conf, url_path)
+
+    -- Set a timeout for the request (in milliseconds)
+    httpc:set_timeout(conf.connect_timeout)
+
+    return httpc:request_uri(conf.api_endpoint..url_path, {
+            method = "GET",
+            headers = {
+                ["Connection"] = "Keep-Alive",
+                ["X-Moesif-Application-Id"] = conf.application_id
+            },
+        })
+end
+
+function _M.post_request(httpc, conf, url_path, body, isCompressed)
+
+    local headers = {}
+    headers["Connection"] = "Keep-Alive"
+    headers["Content-Type"] = "application/json"
+    headers["X-Moesif-Application-Id"] = conf.application_id
+    headers["User-Agent"] = "kong-plugin-moesif/"..plugin_version
+    headers["Content-Length"] = #body
+    if isCompressed then 
+        headers["Content-Encoding"] = "deflate"
     end
 
-    if sessionerr then
-      if conf.debug then 
-        ngx_log(ngx_log_ERR, "[moesif] failed to do SSL handshake with " .. host .. ":" .. tostring(port) .. ": ", sessionerr)
-      end
-      session = nil
-      return nil, nil
-    end
-  end
-  return sock, parsed_url
+    -- Set a timeout for the request (in milliseconds)
+    httpc:set_timeout(conf.send_timeout)
+
+    return httpc:request_uri(conf.api_endpoint..url_path, {
+        method = "POST",
+        body = body,
+        headers = headers,
+        keepalive_timeout = keepalive_timeout-- 10min
+    })
 end
 
 return _M
