@@ -1,10 +1,10 @@
-# Moesif Plugin for Kong Gateway
+# Moesif Plugin for Kong Ingress Controller
 
 ## Overview 
 
-The Moesif plugin for [Kong Gateway](https://docs.konghq.com/gateway/latest/) enables you to get powerful API analytics and observability directly within your Kong environment. It works by logging API traffic to [Moesif API Analytics and Monetization platform](https://www.moesif.com?language=kong-api-gateway&utm_medium=docs&utm_campaign=partners&utm_source=kong). 
+The Moesif plugin for [Kong Ingress Controller](https://docs.konghq.com/kubernetes-ingress-controller/) enables you to get powerful API analytics and observability directly within your Kong environment. It works by logging API traffic to [Moesif API Analytics and Monetization platform](https://www.moesif.com?language=kong-api-gateway&utm_medium=docs&utm_campaign=partners&utm_source=kong). 
 
-- [Kong Gateway](https://docs.konghq.com/gateway/latest/) is an open-source API management platform.
+- [Kong Ingress Controller](https://docs.konghq.com/kubernetes-ingress-controller/latest/) is a kubernetes native API gateway and AI gateway.
 - [Moesif](https://www.moesif.com/) is an API analytics and monetization service.
 
 With the Moesif plugin for Kong Konnect, you can:
@@ -15,66 +15,91 @@ With the Moesif plugin for Kong Konnect, you can:
 * [Enforce quotas and limits](https://www.moesif.com/features/api-governance-rules?utm_medium=docs&utm_campaign=partners&utm_source=kong)
 * [Guide customers using your APIs](https://www.moesif.com/features/user-behavioral-emails?utm_medium=docs&utm_campaign=partners&utm_source=kong)
 
-The plugin is designed to log REST, GraphQL, XML/SOAP, and other API traffic without adding any latency. It supports both open-source and enterprise editions of Kong Gateway including [Kong AI Gateway](https://docs.konghq.com/gateway/latest/ai-gateway/).
+The plugin is designed to log REST, GraphQL, XML/SOAP, and other API traffic without adding any latency. It supports both open-source and enterprise editions of Kong Ingress Controller.
 
 [Source Code on GitHub](https://github.com/Moesif/kong-plugin-moesif)
 
 [Package on Luarocks](http://luarocks.org/modules/moesif/kong-plugin-moesif)
 
-## How to install
+## How to Install
 
-> If you are using Kong's [Kubernetes Ingress Controller](https://github.com/Kong/kubernetes-ingress-controller), review the [docs for Kong Ingress](https://www.moesif.com/docs/server-integration/kong-ingress-controller/). If you're using Kong Konnect, review the [docs for Kong Konnect](https://www.moesif.com/docs/server-integration/kong-konnect/) 
+### Prerequisite
+>- Make sure the `lua-zlib` lib dependencies (git, zlib1g-dev, gcc) have been installed on the system.
+   >  - For example when using the apt package manager, run `apt-get update; apt-get install git zlib1g-dev gcc`.
 
-The .rock file is a self-contained package that can be installed locally or from a remote server.
+### Create a ConfigMap with the Moesif Plugin Code
 
-If the luarocks utility is installed in your system (this is likely the case if you used one of the official installation packages), you can install the 'rock' in your LuaRocks tree (a directory in which LuaRocks installs Lua modules).
-
-### 1. Install the Moesif plugin
+You'll need to clone the [kong-moesif-plugin](https://github.com/Moesif/kong-plugin-moesif) and navigate to the `kong/plugins` directory to create a configMap using 
 
 ```bash
-luarocks install --server=http://luarocks.org/manifests/moesif kong-plugin-moesif
+kubectl create configmap kong-plugin-moesif --from-file=moesif -n kong
 ```
+Please ensure that this is created in the same namespace as the one in which Kong is going to be installed.
 
->- Make sure the `unzip` package is installed on your machine. 
->  - For example when using the apt package manager, run `apt-get update; apt-get install curl vim unzip`.
->- Make sure the `lua-zlib` lib dependencies (git, zlib1g-dev, gcc) have been installed on the system.
->  - For example when using the apt package manager, run `apt-get update; apt-get install git zlib1g-dev gcc`.
+### Add Kong Chart
 
-### 2. Update your loaded plugins list
-In your `kong.conf`, append `moesif` to the `plugins` field (or `custom_plugins` if old version of Kong). Make sure the field is not commented out.
+*Please Note* that this section assumes that you've helm kong chart available, if not please add kong helm chart. If you already have helm kong chart available, please skip this step.
+
+You'll need to add the kong chart and update the repo via Helm.
+
+```bash
+# Add kong chart 
+helm repo add kong https://charts.konghq.com
+
+# Update helm repo
+helm repo update
+```
+### Load Moesif Plugin
+
+With Helm, you could load the Moesif plugin by adding the following values to your `values.yaml` file:
 
 ```yaml
-plugins = bundled,moesif         # Comma-separated list of plugins this node
-                                 # should load. By default, only plugins
-                                 # bundled in official distributions are
-                                 # loaded via the `bundled` keyword.
+# values.yaml
+plugins:
+  configMaps:
+  - name: kong-plugin-moesif
+    pluginName: moesif
 ```
 
+### Deploy the Kubernetes Ingress Controller
 
-If you don't have a `kong.conf`, create one from the default using the following command: 
-`cp /etc/kong/kong.conf.default /etc/kong/kong.conf`
-
-### 3. Restart Kong
-
-After the luarock is installed, restart Kong before enabling the plugin
+You'll need to patch the kong ingress controller deployment with the Moesif plugin and rollout the deployment.
 
 ```bash
-kong restart
+helm upgrade kong kong/kong --namespace kong --values values.yaml
 ```
 
-### 4. Enable the Moesif plugin
+### Enabling the plugin Globally
+
+Create a `global-plugin.yaml` file
+
+```yaml
+apiVersion: configuration.konghq.com/v1
+kind: KongClusterPlugin
+metadata:
+  name: moesif
+  annotations:
+    kubernetes.io/ingress.class: kong
+  labels:
+    global: "true"
+config:
+  application_id: Your Moesif Application Id
+  debug: false
+plugin: moesif
+```
+
+and then apply the plugin globally.
 
 ```bash
-curl -i -X POST --url http://localhost:8001/plugins/ --data "name=moesif" --data "config.application_id=YOUR_APPLICATION_ID";
+kubectl  apply -f global-plugin.yaml
 ```
 
-### 5. Restart Kong again
+Your Moesif Application Id can be found in the [_Moesif Portal_](https://www.moesif.com/).
+After signing up for a Moesif account, your Moesif Application Id will be displayed during the onboarding steps or by going to API keys section within Moesif settings.
 
-If you don't see any logs in Moesif, you may need to restart Kong again. 
+*Please note* that setting the label global to "true" will apply the plugin globally in Kong, meaning it will be executed for every request that is proxied via Kong.
 
-```bash
-kong restart
-```
+Please ensure that this is created in the same namespace as the one in which Kong is installed. If your namespace is different from `kong`, you should change this command accordingly.
 
 ## How to use
 
@@ -102,8 +127,11 @@ curl -X POST http://localhost:8001/plugins \
 ```
 
 - `config.application_id`: Your Moesif Application Id can be found in the [_Moesif Portal_](https://www.moesif.com/).
-After signing up for a Moesif account, your Moesif Application Id will be displayed during the onboarding steps or by going to API keys section within Moesif settings.
+After signing up for a Moesif account, your Moesif Application Id will be displayed during the onboarding steps. 
 
+You can always find your Moesif Application Id at any time by logging 
+into the [_Moesif Portal_](https://www.moesif.com/), click on the top right menu,
+and then clicking _API Keys_.
 
 ### Enabling the plugin on a Service
 
@@ -236,11 +264,11 @@ Using the [GET /plugins](https://docs.konghq.com/gateway/2.8.x/admin-api/), get 
 ```bash		
 curl -X GET http://localhost:8001/plugins/
 ```
-	
+  
 ### 2. Update the plugin instance
 
 Use the plugin id from the previous step, update the plugin with desired configuration using [PATCH /plugins/{plugin id}](https://docs.konghq.com/gateway/2.8.x/admin-api/#update-plugin)
-		
+    
 ```bash
 curl -X PATCH http://localhost:8001/plugins/{plugin id} 
     --data “config.application_id=YOUR_APPLICATION_ID” 
@@ -290,11 +318,11 @@ Using the [GET /plugins](https://docs.konghq.com/gateway/2.8.x/admin-api/), get 
 ```bash		
 curl -X GET http://localhost:8001/plugins/
 ```
-	
+  
 ### 2. Update the plugin instance
 
 Use the plugin id from the previous step, update the plugin with your new configuration using [PATCH /plugins/{plugin id}](https://docs.konghq.com/gateway/2.8.x/admin-api/#update-plugin). In this case, ensure `--data “config.debug=true"`
-		
+    
 ```bash
 curl -X PATCH http://localhost:8001/plugins/{plugin id} 
     --data “config.application_id=YOUR_APPLICATION_ID” 
