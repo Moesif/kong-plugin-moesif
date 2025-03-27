@@ -49,20 +49,23 @@ function MoesifLogHandler:access(conf)
   local req_post_args = {}
   local err = nil
   local mimetype = nil
-  local content_length = headers["content-length"]
-  -- Hash key of the config application Id
-  local hash_key = string.sub(conf.application_id, -10)
-  if (queue_hashes[hash_key] == nil) or 
-        (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
+  -- Only capture the request body if conf.disable_capture_request_body is false
+  if not conf.disable_capture_request_body then
+    local content_length = headers["content-length"]
+    -- Hash key of the config application Id
+    local hash_key = string.sub(conf.application_id, -10)
+    if (queue_hashes[hash_key] == nil) or 
+          (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
 
-    -- Read request body
-    req_read_body()
-    local read_request_body = req_get_body_data()
-    if (content_length == nil and read_request_body ~= nil and string.len(read_request_body) <= conf.request_max_body_size_limit) or (content_length ~= nil and tonumber(content_length) <= conf.request_max_body_size_limit) then 
-      req_body = read_request_body
-      local content_type = headers["content-type"]
-      if content_type and string_find(content_type:lower(), "application/x-www-form-urlencoded", nil, true) then
-        req_post_args, err, mimetype = kong.request.get_body()
+      -- Read request body
+      req_read_body()
+      local read_request_body = req_get_body_data()
+      if (content_length == nil and read_request_body ~= nil and string.len(read_request_body) <= conf.request_max_body_size_limit) or (content_length ~= nil and tonumber(content_length) <= conf.request_max_body_size_limit) then 
+        req_body = read_request_body
+        local content_type = headers["content-type"]
+        if content_type and string_find(content_type:lower(), "application/x-www-form-urlencoded", nil, true) then
+          req_post_args, err, mimetype = kong.request.get_body()
+        end
       end
     end
   end
@@ -85,24 +88,35 @@ function MoesifLogHandler:access(conf)
   end
 end
 
- function MoesifLogHandler:body_filter(conf)
+function MoesifLogHandler:body_filter(conf)
+  -- Only capture the response body if conf.disable_capture_response_body is false
+  if not conf.disable_capture_response_body then
 
     local headers = ngx.resp.get_headers()
     local content_length = headers["content-length"]
 
     -- Hash key of the config application Id
     local hash_key = string.sub(conf.application_id, -10)
+
+    -- Only capture the response body if it meets the conditions
     if (queue_hashes[hash_key] == nil) or 
           (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
 
-      if (content_length == nil) or (tonumber(content_length) <= conf.response_max_body_size_limit) then
-        local chunk = ngx.arg[1]
-        local moesif_data = ngx.ctx.moesif or {res_body = ""} -- minimize the number of calls to ngx.ctx while fallbacking on default value
-        moesif_data.res_body = moesif_data.res_body .. chunk
-        ngx.ctx.moesif = moesif_data
-      end
-    end
- end
+        if (content_length == nil) or (tonumber(content_length) <= conf.response_max_body_size_limit) then
+            local chunk = ngx.arg[1]
+            -- Process the chunks incrementally
+            if chunk and #chunk > 0 then
+                -- Store only the first few KBs of the response body
+                local moesif_data = ngx.ctx.moesif or {res_body = ""}
+                if #moesif_data.res_body < conf.response_max_body_size_limit then
+                    moesif_data.res_body = moesif_data.res_body .. chunk
+                end
+                ngx.ctx.moesif = moesif_data
+            end
+        end
+     end
+  end
+end
 
  -- Function to ensure response body size is less than conf.response_max_body_size_limit
 function ensure_body_size_under_limit(ngx, conf)

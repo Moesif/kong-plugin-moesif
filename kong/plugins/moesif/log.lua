@@ -60,6 +60,7 @@ end
 local function compress_data(input_string)
   local compressor = zlib.deflate()
   local compressed_data, eof, bytes_in, bytes_out = compressor(input_string, "finish")
+  compressor = nil
   return compressed_data
 end
 
@@ -412,6 +413,61 @@ local function send_events_batch(premature)
   -- get_memory_usage("After processing batch")
 end
 
+-- local function get_object_size(obj)
+--   -- Get memory usage before creating the object
+--   collectgarbage() -- Run garbage collection to get an accurate measurement
+--   local before = collectgarbage("count") -- Memory in kilobytes
+
+--   -- Serialize the object to a string (to measure its size)
+--   local serialized = string.dump(function() return obj end)
+
+--   -- Get memory usage after creating the object
+--   collectgarbage()
+--   local after = collectgarbage("count")
+
+--   -- Return the approximate size in bytes
+--   return (after - before) * 1024 -- Convert kilobytes to bytes
+-- end
+
+
+local function get_object_size(obj)
+  -- Serialize the object to a string
+  local function serialize(tbl)
+      if type(tbl) == "table" then
+          local result = "{"
+          for k, v in pairs(tbl) do
+              local key = type(k) == "string" and '"' .. k .. '"' or tostring(k)
+              local value = type(v) == "table" and serialize(v)
+                  or (type(v) == "string" and '"' .. v .. '"' or tostring(v))
+              result = result .. key .. ":" .. value .. ","
+          end
+          return result .. "}"
+      elseif type(tbl) == "string" then
+          return '"' .. tbl .. '"'
+      else
+          return tostring(tbl)
+      end
+  end
+
+  local serialized = serialize(obj)
+
+  -- Return the size of the serialized string in bytes
+  return #serialized
+end
+
+function dump(o)
+  if type(o) == 'table' then
+     local s = '{ '
+     for k,v in pairs(o) do
+        if type(k) ~= 'number' then k = '"'..k..'"' end
+        s = s .. '['..k..'] = ' .. dump(v) .. ','
+     end
+     return s .. '} '
+  else
+     return tostring(o)
+  end
+end
+
 -- Log to a Http end point.
 -- @param `conf`     Configuration table, holds http endpoint details
 -- @param `message`  Message to be logged
@@ -456,10 +512,12 @@ local function log(conf, message, hash_key)
   end
 
   if sampling_rate > random_percentage then
+    message["weight"] = (sampling_rate == 0 and 1 or math.floor(100 / sampling_rate))
     if conf.debug then
       ngx_log(ngx.DEBUG, "[moesif] Event added to the queue" .. " for pid - ".. ngx.worker.pid())
+      -- ngx_log(ngx.DEBUG, "[moesif] Size of message object:", get_object_size(message), "bytes")
+      -- ngx_log(ngx.DEBUG, "[moesif] message object:", dump(message))
     end
-    message["weight"] = (sampling_rate == 0 and 1 or math.floor(100 / sampling_rate))
     rec_event = rec_event + 1
     table.insert(queue_hashes[hash_key], message)
   else

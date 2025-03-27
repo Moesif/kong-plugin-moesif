@@ -1,8 +1,6 @@
 local _M = {}
 local cjson = require "cjson"
-local helper = require "kong.plugins.moesif.helpers"
 local connect = require "kong.plugins.moesif.connection"
-local string_format = string.format
 local ngx_log = ngx.log
 local ngx_log_ERR = ngx.ERR
 governance_rules_hashes = {}
