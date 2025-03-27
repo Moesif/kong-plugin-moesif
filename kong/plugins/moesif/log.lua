@@ -456,10 +456,10 @@ local function log(conf, message, hash_key)
   end
 
   if sampling_rate > random_percentage then
-    message["weight"] = (sampling_rate == 0 and 1 or math.floor(100 / sampling_rate))
     if conf.debug then
       ngx_log(ngx.DEBUG, "[moesif] Event added to the queue" .. " for pid - ".. ngx.worker.pid())
     end
+    message["weight"] = (sampling_rate == 0 and 1 or math.floor(100 / sampling_rate))
     rec_event = rec_event + 1
     table.insert(queue_hashes[hash_key], message)
   else
