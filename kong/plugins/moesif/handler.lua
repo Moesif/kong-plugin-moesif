@@ -5,11 +5,11 @@ local MoesifLogHandler = {
   PRIORITY = 5,
 }
 -- local log = require "kong.plugins.moesif.log"
-local req_set_header = ngx.req.set_header
-local string_find = string.find
-local req_read_body = ngx.req.read_body
-local req_get_headers = ngx.req.get_headers
-local req_get_body_data = ngx.req.get_body_data
+-- local req_set_header = ngx.req.set_header
+-- local string_find = string.find
+-- local req_read_body = ngx.req.read_body
+-- local req_get_headers = ngx.req.get_headers
+-- local req_get_body_data = ngx.req.get_body_data
 local socket = require "socket"
 queue_hashes = {}
 
