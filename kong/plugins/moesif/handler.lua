@@ -119,76 +119,76 @@ end
 --   end
 -- end
 
-function MoesifLogHandler:body_filter(conf)
-  -- Only capture the response body if conf.disable_capture_response_body is false
-  if not conf.disable_capture_response_body then
+-- function MoesifLogHandler:body_filter(conf)
+--   -- Only capture the response body if conf.disable_capture_response_body is false
+--   if not conf.disable_capture_response_body then
 
-    -- ngx.log(ngx.DEBUG, '[moesif] Processing response body.')
+--     -- ngx.log(ngx.DEBUG, '[moesif] Processing response body.')
 
-    local headers = ngx.resp.get_headers()
-    local content_length = headers["content-length"]
+--     local headers = ngx.resp.get_headers()
+--     local content_length = headers["content-length"]
 
-    -- Hash key of the config application Id
-    local hash_key = string.sub(conf.application_id, -10)
+--     -- Hash key of the config application Id
+--     local hash_key = string.sub(conf.application_id, -10)
 
-    -- Only capture the response body if it meets the conditions
-    if (queue_hashes[hash_key] == nil) or 
-          (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
+--     -- Only capture the response body if it meets the conditions
+--     if (queue_hashes[hash_key] == nil) or 
+--           (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
 
-        -- Initialize the response body buffer in the Nginx context
-        local moesif_data = ngx.ctx.moesif or {res_body = ""}
+--         -- Initialize the response body buffer in the Nginx context
+--         local moesif_data = ngx.ctx.moesif or {res_body = ""}
 
-        -- Process the chunks incrementally
-        local chunk = ngx.arg[1]
+--         -- Process the chunks incrementally
+--         local chunk = ngx.arg[1]
 
-        -- Check if Content-Length is set
-        if content_length then
-            -- ngx.log(ngx.DEBUG, '[moesif] Content-Length is set')
-            -- Only capture the response body if it is within the size limit
-            if tonumber(content_length) <= conf.response_max_body_size_limit then
-                if chunk and #chunk > 0 then
-                    -- Append the chunk to the buffer
-                    if #moesif_data.res_body < conf.response_max_body_size_limit then
-                        -- ngx.log(ngx.DEBUG, '[moesif] Append the chunk to the buffer with content length set') 
-                        moesif_data.res_body = moesif_data.res_body .. chunk
-                    end
-                end
-            else 
-              -- ngx.log(ngx.DEBUG, '[moesif] Setting response body to empty string when content length is defined') 
-              moesif_data.res_body_exceeded_max_size = true
-            end
-        else
-            -- Handle Transfer-Encoding: chunked
-            -- ngx.log(ngx.DEBUG, '[moesif] Handle Transfer-Encoding: chunked - ' .. tostring(#chunk) .. " and accumulated - " .. tostring(#moesif_data.res_body) .. " and moesif_data.res_body_exceeded_max_size -" .. tostring(moesif_data.res_body_exceeded_max_size))
-            if chunk and #chunk > 0 then
-                -- Append the chunk to the buffer only if within the size limit
-                if (not moesif_data.res_body_exceeded_max_size) and (#moesif_data.res_body < conf.response_max_body_size_limit) then
-                    local remaining_limit = conf.response_max_body_size_limit - #moesif_data.res_body
-                    if #chunk < remaining_limit then
-                        -- ngx.log(ngx.DEBUG, '[moesif] Accumulating chunks with Encoding ')
-                        moesif_data.res_body = moesif_data.res_body .. chunk
-                    else
-                    --     -- Truncate the chunk to fit within the size limit
-                    --     -- ngx.log(ngx.DEBUG, '[moesif] Truncate the chunk to fit within the size limit')
-                    --     -- chunk = string.sub(chunk, 1, remaining_limit)
-                        -- ngx.log(ngx.DEBUG, '[moesif] Setting res_body_exceeded_max_size to true as chunk < remaining_limit ')
-                        moesif_data.res_body_exceeded_max_size = true
-                    --     -- moesif_data.res_body = ""
-                    end
-                    -- ngx.log(ngx.DEBUG, '[moesif] Accumulating chunks with Encoding ')
-                    -- moesif_data.res_body = moesif_data.res_body .. chunk
-                else
-                    -- ngx.log(ngx.DEBUG, '[moesif] Setting response body to empty string and no longer reading chunks') 
-                    moesif_data.res_body_exceeded_max_size = true
-                    moesif_data.res_body = ""
-                end
-            end
-        end
-    end
-  -- else
-  --   ngx.log(ngx.DEBUG, '[moesif] Not processing response body.')
-  end
-end
+--         -- Check if Content-Length is set
+--         if content_length then
+--             -- ngx.log(ngx.DEBUG, '[moesif] Content-Length is set')
+--             -- Only capture the response body if it is within the size limit
+--             if tonumber(content_length) <= conf.response_max_body_size_limit then
+--                 if chunk and #chunk > 0 then
+--                     -- Append the chunk to the buffer
+--                     if #moesif_data.res_body < conf.response_max_body_size_limit then
+--                         -- ngx.log(ngx.DEBUG, '[moesif] Append the chunk to the buffer with content length set') 
+--                         moesif_data.res_body = moesif_data.res_body .. chunk
+--                     end
+--                 end
+--             else 
+--               -- ngx.log(ngx.DEBUG, '[moesif] Setting response body to empty string when content length is defined') 
+--               moesif_data.res_body_exceeded_max_size = true
+--             end
+--         else
+--             -- Handle Transfer-Encoding: chunked
+--             -- ngx.log(ngx.DEBUG, '[moesif] Handle Transfer-Encoding: chunked - ' .. tostring(#chunk) .. " and accumulated - " .. tostring(#moesif_data.res_body) .. " and moesif_data.res_body_exceeded_max_size -" .. tostring(moesif_data.res_body_exceeded_max_size))
+--             if chunk and #chunk > 0 then
+--                 -- Append the chunk to the buffer only if within the size limit
+--                 if (not moesif_data.res_body_exceeded_max_size) and (#moesif_data.res_body < conf.response_max_body_size_limit) then
+--                     local remaining_limit = conf.response_max_body_size_limit - #moesif_data.res_body
+--                     if #chunk < remaining_limit then
+--                         -- ngx.log(ngx.DEBUG, '[moesif] Accumulating chunks with Encoding ')
+--                         moesif_data.res_body = moesif_data.res_body .. chunk
+--                     else
+--                     --     -- Truncate the chunk to fit within the size limit
+--                     --     -- ngx.log(ngx.DEBUG, '[moesif] Truncate the chunk to fit within the size limit')
+--                     --     -- chunk = string.sub(chunk, 1, remaining_limit)
+--                         -- ngx.log(ngx.DEBUG, '[moesif] Setting res_body_exceeded_max_size to true as chunk < remaining_limit ')
+--                         moesif_data.res_body_exceeded_max_size = true
+--                     --     -- moesif_data.res_body = ""
+--                     end
+--                     -- ngx.log(ngx.DEBUG, '[moesif] Accumulating chunks with Encoding ')
+--                     -- moesif_data.res_body = moesif_data.res_body .. chunk
+--                 else
+--                     -- ngx.log(ngx.DEBUG, '[moesif] Setting response body to empty string and no longer reading chunks') 
+--                     moesif_data.res_body_exceeded_max_size = true
+--                     moesif_data.res_body = ""
+--                 end
+--             end
+--         end
+--     end
+--   -- else
+--   --   ngx.log(ngx.DEBUG, '[moesif] Not processing response body.')
+--   end
+-- end
 
  -- Function to ensure response body size is less than conf.response_max_body_size_limit
 function ensure_body_size_under_limit(ngx, conf)
