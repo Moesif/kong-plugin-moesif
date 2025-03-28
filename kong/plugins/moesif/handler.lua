@@ -78,15 +78,15 @@ function MoesifLogHandler:access(conf)
     res_body_exceeded_max_size = false
   }
 
-  -- Check if need to block incoming request based on user-specified governance rules
-  local block_req = governance.govern_request(ngx, conf, start_access_phase_time)
-  if block_req == nil then 
-    if conf.debug then
-      ngx.log(ngx.DEBUG, '[moesif] No need to block incoming request.')
-    end
-    local end_access_phase_time = socket.gettime()*1000
-    ngx.log(ngx.DEBUG, "[moesif] access phase took time for non-blocking request - ".. tostring(end_access_phase_time - start_access_phase_time).." for pid - ".. ngx.worker.pid())
-  end
+  -- -- Check if need to block incoming request based on user-specified governance rules
+  -- local block_req = governance.govern_request(ngx, conf, start_access_phase_time)
+  -- if block_req == nil then 
+  --   if conf.debug then
+  --     ngx.log(ngx.DEBUG, '[moesif] No need to block incoming request.')
+  --   end
+  --   local end_access_phase_time = socket.gettime()*1000
+  --   ngx.log(ngx.DEBUG, "[moesif] access phase took time for non-blocking request - ".. tostring(end_access_phase_time - start_access_phase_time).." for pid - ".. ngx.worker.pid())
+  -- end
 end
 
 -- function MoesifLogHandler:body_filter(conf)
