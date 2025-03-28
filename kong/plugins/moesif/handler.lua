@@ -223,7 +223,7 @@ function MoesifLogHandler:log(conf)
         ngx.log(ngx.DEBUG, '[moesif] logging new event when queue hash is nil ' .." for pid - ".. ngx.worker.pid())
       end
     end
-    log_event(ngx, conf)
+    -- log_event(ngx, conf)
   else
     if conf.debug then
       ngx.log(ngx.DEBUG, '[moesif] Queue is full, do not log new events '.." for pid - ".. ngx.worker.pid())
