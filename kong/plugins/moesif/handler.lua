@@ -239,7 +239,7 @@ function MoesifLogHandler:header_filter(conf)
 end
 
 function MoesifLogHandler:init_worker()
-  -- log.start_background_thread()
+  log.start_background_thread()
 end
 
 -- Plugin version
