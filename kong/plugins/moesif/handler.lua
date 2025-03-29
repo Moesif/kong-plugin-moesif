@@ -209,27 +209,27 @@ function log_event(ngx, conf)
   ngx.log(ngx.DEBUG, "[moesif] log phase took time - ".. tostring(end_log_phase_time - start_log_phase_time).." for pid - ".. ngx.worker.pid())
 end
 
--- function MoesifLogHandler:log(conf)
---   ngx.log(ngx.DEBUG, '[moesif] Log phase called for the new event ' .." for pid - ".. ngx.worker.pid())
+function MoesifLogHandler:log(conf)
+  ngx.log(ngx.DEBUG, '[moesif] Log phase called for the new event ' .." for pid - ".. ngx.worker.pid())
 
---   -- Hash key of the config application Id
---   local hash_key = string.sub(conf.application_id, -10)
---   if (queue_hashes[hash_key] == nil) or 
---         (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
---     if conf.debug then
---       if (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table") then 
---         ngx.log(ngx.DEBUG, '[moesif] logging new event where the current number of events in the queue is '.. tostring(#queue_hashes[hash_key]) .. " for pid - ".. ngx.worker.pid())
---       else 
---         ngx.log(ngx.DEBUG, '[moesif] logging new event when queue hash is nil ' .." for pid - ".. ngx.worker.pid())
---       end
---     end
---     -- log_event(ngx, conf)
---   else
---     if conf.debug then
---       ngx.log(ngx.DEBUG, '[moesif] Queue is full, do not log new events '.." for pid - ".. ngx.worker.pid())
---     end
---   end
--- end
+  -- Hash key of the config application Id
+  local hash_key = string.sub(conf.application_id, -10)
+  if (queue_hashes[hash_key] == nil) or 
+        (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
+    if conf.debug then
+      if (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table") then 
+        ngx.log(ngx.DEBUG, '[moesif] logging new event where the current number of events in the queue is '.. tostring(#queue_hashes[hash_key]) .. " for pid - ".. ngx.worker.pid())
+      else 
+        ngx.log(ngx.DEBUG, '[moesif] logging new event when queue hash is nil ' .." for pid - ".. ngx.worker.pid())
+      end
+    end
+    log_event(ngx, conf)
+  else
+    if conf.debug then
+      ngx.log(ngx.DEBUG, '[moesif] Queue is full, do not log new events '.." for pid - ".. ngx.worker.pid())
+    end
+  end
+end
 
 function MoesifLogHandler:header_filter(conf)
 
