@@ -1,7 +1,7 @@
 local serializer = require "kong.plugins.moesif.moesif_ser"
 local governance = require "kong.plugins.moesif.moesif_gov"
 local MoesifLogHandler = {
-  VERSION  = "2.1.1",
+  VERSION  = "2.1.2",
   PRIORITY = 5,
 }
 local log = require "kong.plugins.moesif.log"
@@ -74,7 +74,8 @@ function MoesifLogHandler:access(conf)
   ngx.ctx.moesif = {
     req_body = req_body,
     res_body = res_body,
-    req_post_args = req_post_args
+    req_post_args = req_post_args,
+    res_body_exceeded_max_size = false
   }
 
   -- Check if need to block incoming request based on user-specified governance rules
@@ -102,19 +103,43 @@ function MoesifLogHandler:body_filter(conf)
     if (queue_hashes[hash_key] == nil) or 
           (queue_hashes[hash_key] ~= nil and type(queue_hashes[hash_key]) == "table" and #queue_hashes[hash_key] < conf.event_queue_size) then
 
-        if (content_length == nil) or (tonumber(content_length) <= conf.response_max_body_size_limit) then
-            local chunk = ngx.arg[1]
-            -- Process the chunks incrementally
-            if chunk and #chunk > 0 then
-                -- Store only the first few KBs of the response body
-                local moesif_data = ngx.ctx.moesif or {res_body = ""}
-                if #moesif_data.res_body < conf.response_max_body_size_limit then
-                    moesif_data.res_body = moesif_data.res_body .. chunk
+        -- Initialize the response body buffer in the Nginx context
+        local moesif_data = ngx.ctx.moesif or {res_body = ""}
+
+        -- Process the chunks incrementally
+        local chunk = ngx.arg[1]
+
+        -- Check if Content-Length is set
+        if content_length then
+            -- Only capture the response body if it is within the size limit
+            if tonumber(content_length) <= conf.response_max_body_size_limit then
+                if chunk and #chunk > 0 then
+                    -- Append the chunk to the buffer
+                    if #moesif_data.res_body < conf.response_max_body_size_limit then
+                        moesif_data.res_body = moesif_data.res_body .. chunk
+                    end
                 end
-                ngx.ctx.moesif = moesif_data
+            else 
+              moesif_data.res_body_exceeded_max_size = true
+            end
+        else
+            -- Handle Transfer-Encoding: chunked
+            if chunk and #chunk > 0 then
+                -- Append the chunk to the buffer only if within the size limit
+                if (not moesif_data.res_body_exceeded_max_size) and (#moesif_data.res_body < conf.response_max_body_size_limit) then
+                    local remaining_limit = conf.response_max_body_size_limit - #moesif_data.res_body
+                    if #chunk < remaining_limit then
+                        moesif_data.res_body = moesif_data.res_body .. chunk
+                    else
+                        moesif_data.res_body_exceeded_max_size = true
+                    end
+                else
+                    moesif_data.res_body_exceeded_max_size = true
+                    moesif_data.res_body = ""
+                end
             end
         end
-     end
+    end
   end
 end
 
