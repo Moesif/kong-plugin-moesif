@@ -22,6 +22,32 @@ This plugin is designed to log REST, GraphQL, XML/SOAP, and other API traffic wi
 
 ## How to install (Docker)
 
+**Prerequisites**:
+- Clone the [kong-moesif-plugin](https://github.com/Moesif/kong-plugin-moesif)
+- Ensure that the docker image has the require library and dependencies installed. You could build the custom image using `Dockerfile` - 
+
+```
+FROM kong/kong-gateway:3.10
+
+# Switch to root user
+USER root
+
+RUN apt-get update; apt-get install -y curl vim unzip git zlib1g-dev gcc
+
+# Install luarocks dependencies
+RUN luarocks install lua-resty-http
+RUN luarocks install lua-zlib
+
+# Revert back to default user
+USER kong
+
+```
+
+and build using `docker build -t kong/kong-gateway-custom .`
+
+Please note that you'd change the kong-gateway image to the kong version you're using.
+
+
 ### 1. Add Moesif Plugin to Data Plane Node
 
 1. In your control plane, go to `Data Plane Nodes`, then click `New Data Plane Node`.
@@ -36,7 +62,8 @@ This plugin is designed to log REST, GraphQL, XML/SOAP, and other API traffic wi
    -e "KONG_LUA_PACKAGE_PATH=/tmp/custom_plugins/?.lua;;" \
    ```
 
-4. Run the command to start a data plane node with `Moesif` plugin loaded in.
+4. Use the docker image `kong/kong-gateway-custom` build earlier
+5. Run the command to start a data plane node with `Moesif` plugin loaded in.
 
 Please note that if you are running Kong Konnect on Docker, the plugin needs to be installed inside the Kong Konnect container for each node. Mount the plugin’s source code into the container.
 
