@@ -340,6 +340,30 @@ You may be missing certain packages that are required to install the plugin. To 
 apt-get update; apt-get install curl vim unzip
 ```
 
+### SSL certificate error: unable to get local issuer certificate
+
+If you see an error similar to this in your Kong data plane logs after otherwise successful plugin configuration, but data is not being logged to Moesif:
+
+```
+[error] 2430#0: *4473 [lua] log.lua:54: prepare_request(): [moesif] failed to send request: 20: unable to get local issuer certificate, context: ngx.timer
+```
+
+This error indicates that the Kong data plane cannot verify SSL certificates when connecting to the Moesif API. Follow these steps to resolve the issue:
+
+1. **Verify system SSL certificates are present**: First, confirm that the Kong pods have access to system base SSL certificates. You can test this by running the following command inside the data plane pod containers:
+
+   ```bash
+   curl https://api.moesif.net
+   ```
+
+   If this command fails, the system SSL certificates are missing and need to be installed in the container.
+
+2. **Configure Kong to use system SSL certificates**: Ensure that the `lua_ssl_trusted_certificate` config for your Kong data plane pods includes the value `system` to use system-wide SSL certificates. In Helm chart values, this is configured as `env.lua_ssl_trusted_certificate` with a value of or including `system`. 
+
+   Reference: [lua_ssl_trusted_certificate documentation](https://docs.konghq.com/gateway/latest/reference/configuration/#lua_ssl_trusted_certificate)
+
+   After updating this configuration, restart your Kong data plane pods for the changes to take effect.
+
 ## Tested Version
 
 For tested versions, [see this page](https://docs.konghq.com/hub/moesif/kong-plugin-moesif/) on Kong docs. 
